@@ -1,0 +1,17 @@
+{
+  "name": "تتبع — شعبة الصيدلة",
+  "short_name": "تتبع",
+  "lang": "ar",
+  "dir": "rtl",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#1F3864",
+  "theme_color": "#1F3864",
+  "icons": [
+    { "src": "icon180.png", "sizes": "180x180", "type": "image/png", "purpose": "any" },
+    { "src": "icon192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
