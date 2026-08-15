@@ -7,14 +7,14 @@
 <meta name="theme-color" content="#1F3864">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="تتبع">
 <link rel="apple-touch-icon" sizes="180x180" href="icon180.png">
 <link rel="icon" type="image/png" href="icon180.png">
 <link rel="manifest" href="manifest.json">
 <style>
 html,body{margin:0;padding:0;height:100%;background:#1F3864;overflow:hidden}
-iframe{position:fixed;inset:0;width:100%;height:100%;border:0}
+iframe{position:fixed;top:env(safe-area-inset-top);bottom:env(safe-area-inset-bottom);left:0;right:0;width:100%;height:auto;border:0}
 #fb{position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;
     font-family:-apple-system,"Segoe UI",Tahoma,Arial,sans-serif;color:#fff;text-align:center;padding:24px}
 #fb a{display:inline-block;margin-top:16px;background:#fff;color:#1F3864;text-decoration:none;
