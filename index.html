@@ -195,7 +195,7 @@ async function sync(silent){
    await postRows({action:'push',device:S.device,counts:c,orders:o.map(flat),dones:d,items:it,
      shorts:sr,notes:nt,utasks:ut2,staff:st.map(flatStaff),settings:dutyPush});
   }
-  var wantStaff=(ME&&(ME.role==='admin'||ME.role==='tech'))?'&staff=1':'';
+  var wantStaff=(ME&&(ME.role==='admin'||ME.role==='tech'))?'':'&staff=0';
   var j2=await jsonp('action=pull&since='+(S.lastPull||0)+wantStaff);
   if(j2&&j2.ok){
    merge(S.counts,j2.counts);merge(S.dones,j2.dones);merge(S.addedItems,j2.items);
