@@ -100,7 +100,7 @@ var TASKS=[
  {id:'handover',unit:'khafira',title:'تسليم واستلام الخفارة',freq:'daily',duty:'any',note:true}
 ];
 var DUTY={ 'P055':['jard'], 'P017':['order'] }; /* مصطفى فضل = الجرد · ريام علاء = الطلبية */
-var DEF={v:4,ids:{},session:null,pw:{},shorts:[],notes:[],utasks:[],dutyTs:0,dutySynced:true,syncUrl:'',device:'',counts:[],orders:[],dones:[],addedItems:[],staff:STAFF,duty:DUTY,lastPull:0};
+var DEF={v:4,ids:{},moves:[],session:null,pw:{},shorts:[],notes:[],utasks:[],dutyTs:0,dutySynced:true,syncUrl:'',device:'',counts:[],orders:[],dones:[],addedItems:[],staff:STAFF,duty:DUTY,lastPull:0};
 var S=load(), ME=null, LOGINERR='', REG='', SORTBY='idx', TAB='', KIND='drug', VIEW='mine', Q='', LINES=[], OTYPE='clin', SUNIT='', CUR=null;
 
 function load(){
@@ -226,7 +226,7 @@ function logout(){ME=null;TAB='';render()}
 function closeM(){document.getElementById('modal').classList.remove('show')}
 function openM(h){document.getElementById('sheet').innerHTML=h;document.getElementById('modal').classList.add('show')}
 function go(t){TAB=t;Q='';render();window.scrollTo(0,0)}
-function pill(){var p=document.getElementById('pill');var n=0;['counts','orders','dones','addedItems','shorts','notes','utasks'].forEach(function(k){
+function pill(){var p=document.getElementById('pill');var n=0;['counts','orders','dones','addedItems','shorts','notes','utasks','moves'].forEach(function(k){
    n+=(S[k]||[]).filter(function(x){return !x.synced}).length});
  if((S.staff||[]).some(function(x){return x.synced===false}))n++;
  var base=(S.syncUrl||API)||''; if(base.indexOf('http')!==0){p.className='pill';p.textContent='محلي';return}
@@ -254,24 +254,32 @@ async function sync(silent){
      d=S.dones.filter(function(x){return !x.synced}),it=S.addedItems.filter(function(x){return !x.synced}),
      sr=S.shorts.filter(function(x){return !x.synced}),nt=S.notes.filter(function(x){return !x.synced}),
      ut2=S.utasks.filter(function(x){return !x.synced}),
+     mv=(S.moves||[]).filter(function(x){return !x.synced}),
      st=(ME&&ME.role==='admin')?S.staff.filter(function(x){return x.synced===false}):[];
  var dutyPush=(ME&&ME.role==='admin'&&S.dutySynced===false)?[{k:'duty',v:JSON.stringify(S.duty),ts:S.dutyTs||Date.now()}]:[];
- var pushed=(c.length||o.length||d.length||it.length||sr.length||nt.length||ut2.length||st.length||dutyPush.length);
+ var pushed=(c.length||o.length||d.length||it.length||sr.length||nt.length||ut2.length||st.length||dutyPush.length||mv.length);
  try{
   if(pushed){
    await postRows({action:'push',device:S.device,counts:c,orders:o.map(flat),dones:d,items:it,
-     shorts:sr,notes:nt,utasks:ut2,staff:st.map(flatStaff),settings:dutyPush});
+     shorts:sr,notes:nt,utasks:ut2,staff:st.map(flatStaff),settings:dutyPush,moves:mv});
   }
   var wantStaff=(ME&&(ME.role==='admin'||ME.role==='tech'))?'':'&staff=0&me='+encodeURIComponent(ME?ME.id:'');
   var j2=await jsonp('action=pull&since='+(S.lastPull||0)+wantStaff);
   if(j2&&j2.ok){
    merge(S.counts,j2.counts);merge(S.dones,j2.dones);merge(S.addedItems,j2.items);
    merge(S.shorts,j2.shorts);merge(S.notes,j2.notes);merge(S.utasks,j2.utasks);
-   (j2.orders||[]).forEach(function(x){if(!S.orders.some(function(y){return y.id===x.id})){try{x.lines=JSON.parse(x.lines||'[]')}catch(e){x.lines=[]}x.synced=true;S.orders.push(x)}});
+   (j2.orders||[]).forEach(function(x){
+     if(!x||!x.id)return;
+     if(typeof x.lines==='string'){try{x.lines=JSON.parse(x.lines||'[]')}catch(e){x.lines=[]}}
+     var cur=S.orders.find(function(y){return y.id===x.id});
+     if(!cur){x.synced=true;S.orders.push(x);return}
+     if(Number(x.ts||0)>=Number(cur.ts||0)){layer(cur,x);cur.synced=true}   /* حتى تصل حالة «صُرفت» لباقي الأجهزة */
+   });
    mergeStaff(j2.staff);
    (j2.settings||[]).forEach(function(x){
      if(x.k==='duty'&&Number(x.ts)>(S.dutyTs||0)){try{S.duty=JSON.parse(x.v);S.dutyTs=Number(x.ts);S.dutySynced=true}catch(e){}}});
-   if(pushed)confirmPushed(j2,[c,o,d,it,sr,nt,ut2,st],dutyPush);
+   merge(S.moves,j2.moves);
+   if(pushed)confirmPushed(j2,[c,o,d,it,sr,nt,ut2,st,mv],dutyPush);
    S.lastPull=j2.now||Date.now();
   }
   save();pill();if(!silent){toast('تمت المزامنة ✓');render()}
@@ -279,7 +287,7 @@ async function sync(silent){
 }
 function confirmPushed(j2,groups,dutyPush){
  var seen={};
- ['counts','orders','dones','items','shorts','notes','utasks','staff'].forEach(function(k){
+ ['counts','orders','dones','items','shorts','notes','utasks','staff','moves'].forEach(function(k){
   (j2[k]||[]).forEach(function(r){if(r&&r.id)seen[r.id]=1;if(r&&r.c)seen[r.c]=1})});
  groups.forEach(function(a){a.forEach(function(x){if(seen[x.id]||seen[x.c])x.synced=true})});
  if(dutyPush.length&&(j2.settings||[]).some(function(x){return x.k==='duty'&&Number(x.ts)>=Number(dutyPush[0].ts)}))S.dutySynced=true;
@@ -294,10 +302,25 @@ function mergeStaff(rows){
   if(typeof r.extra==='string'){try{r.extra=JSON.parse(r.extra||'[]')}catch(e){r.extra=[]}}
   r.synced=true;
   if(r.deleted==='نعم'){S.staff=S.staff.filter(function(x){return x.id!==r.id});return}
-  if(cur)Object.assign(cur,r); else S.staff.push(r);
+  if(cur)layer(cur,r); else S.staff.push(r);
  });
 }
-function merge(arr,inc){(inc||[]).forEach(function(x){if(!arr.some(function(y){return y.id===x.id})){x.synced=true;arr.push(x)}})}
+function layer(dst,src){                    /* طبقة فوق طبقة — لا استبدال كامل */
+ Object.keys(src||{}).forEach(function(k){
+  var v=src[k];
+  if(v===undefined)return;                  /* حقل غائب لا يلمس المخزون */
+  if((v===''||v===null)&&dst[k]!==''&&dst[k]!==undefined&&dst[k]!==null)return; /* فارغ لا يمسح ممتلئاً */
+  dst[k]=v;
+ });
+ return dst;
+}
+function merge(arr,inc){                    /* الأحدث يفوز، ودمجاً لا استبدالاً */
+ (inc||[]).forEach(function(x){
+  if(!x||!x.id)return;
+  var i=-1;for(var j=0;j<arr.length;j++){if(arr[j].id===x.id){i=j;break}}
+  if(i<0){x.synced=true;arr.push(x);return}
+  if(Number(x.ts||0)>=Number(arr[i].ts||0)){layer(arr[i],x);arr[i].synced=true}
+ })}
 window.addEventListener('online',function(){sync(true)});window.addEventListener('offline',pill);
 
 
@@ -365,12 +388,12 @@ function render(){
    : ME.role==='admin'
    ? [['dash','اللوحة','◧'],['units','الوحدات','▦'],['staff','الكادر','☰'],['me','ملفي','☺'],['data','البيانات','⚙']]
    : [['today','اليوم','☑'],['jard','الجرد','▦'],['order','الطلبية','✎']]
-     .concat(ME.unit==='mathkar'?[['short','شحيح ومفقود','▤']]:[])
+     .concat(ME.unit==='mathkar'?[['orders_in','طلبيات الوحدات','⇄'],['short','شحيح ومفقود','▤']]:[])
      .concat([['unit','وحدتي','◧'],['me','ملفي','☺']]);
  var allowed=tabs.map(function(x){return x[0]});
  if(!TAB||allowed.indexOf(TAB)<0)TAB=allowed[0];   /* لا يفتح أحد شاشة ليست له */
  nav.innerHTML=tabs.map(function(t){return '<button class="'+(TAB===t[0]?'act':'')+'" onclick="go(\''+t[0]+'\')"><i>'+t[2]+'</i>'+t[1]+'</button>'}).join('');
- app.innerHTML = TAB==='me'?meV():TAB==='tdash'?tdashV():TAB==='send'?sendV():TAB==='dir'?dirV():TAB==='view'?viewV()
+ app.innerHTML = TAB==='orders_in'?ordersInV():TAB==='me'?meV():TAB==='jard'&&isLedger(ME.unit)?ledgerV():TAB==='tdash'?tdashV():TAB==='send'?sendV():TAB==='dir'?dirV():TAB==='view'?viewV()
   :TAB==='today'?todayV():TAB==='jard'?jardV():TAB==='order'?orderV():TAB==='short'?shortV():TAB==='unit'?unitV(ME.unit)
   :TAB==='dash'?dashV():TAB==='units'?unitsV():TAB==='staff'?staffV():dataV();
 }
@@ -905,6 +928,247 @@ function myPhoto(inp){var f=inp.files[0];if(!f)return;var r=new FileReader();
  r.onload=function(){var im=new Image();im.onload=function(){var c=document.createElement('canvas'),m=220,sc=Math.min(m/im.width,m/im.height,1);
   c.width=im.width*sc;c.height=im.height*sc;c.getContext('2d').drawImage(im,0,0,c.width,c.height);
   var p=myRecord();p.photo=c.toDataURL('image/jpeg',0.6);touchStaff(p);save();sync(true);render()};im.src=r.result};r.readAsDataURL(f)}
+
+
+/* ================= دفتر حركات المذخر ================= */
+var PARTIES_IN=['دائرة مدينة الطب — حصة','دائرة مدينة الطب — مناقلة','شراء محلي','هبة','مناقلة من مستشفى آخر','رصيد افتتاحي'];
+var PARTIES_OUT=['الصيدلية الداخلية','الصيدلية السريرية','الصيدلية الاستشارية','الصيدلية الخافرة','مناقلة إلى مستشفى آخر','إتلاف','أخرى'];
+var LEDGER_UNITS=['mathkar'];
+function isLedger(u){return LEDGER_UNITS.indexOf(u)>=0}
+
+/* الأساس = آخر جرد للصنف · الرصيد = الأساس + الوارد − الصادر بعد تاريخه */
+function baseOf(unit,kind,code){
+ var rows=S.counts.filter(function(c){return c.unit===unit&&c.kind===kind&&c.code===code&&c.qty!==''&&c.qty!==undefined});
+ if(!rows.length)return {qty:0,date:'0000-00-00',ts:0};
+ var last=rows.map(function(r){return r.date}).sort().pop();
+ var lots={},ts=0;rows.filter(function(r){return r.date===last}).forEach(function(r){
+   var k=(r.lot||1);if(!lots[k]||lots[k].ts<r.ts)lots[k]=r;if(Number(r.ts||0)>ts)ts=Number(r.ts||0)});
+ var q=0;Object.keys(lots).forEach(function(k){q+=(+lots[k].qty||0)});
+ return {qty:q,date:last,ts:ts};
+}
+/* الحركات المحتسبة = ما جرى بعد لحظة الجرد الأخير فقط */
+function movesOf(unit,kind,code){
+ var b=baseOf(unit,kind,code);
+ return S.moves.filter(function(m){return m.unit===unit&&m.kind===kind&&m.code===code&&m.date>=b.date&&Number(m.ts||0)>Number(b.ts||0)})
+   .sort(function(a,c){return c.ts-a.ts});
+}
+function balanceOf(unit,kind,code){
+ var b=baseOf(unit,kind,code),q=b.qty;
+ movesOf(unit,kind,code).forEach(function(m){q+=(m.dir==='in'?1:-1)*(+m.qty||0)});
+ return q;
+}
+function lotsOf(unit,kind,code){                     /* الوجبات: من الجرد + ما ورد بعده */
+ var out=[],b=baseOf(unit,kind,code);
+ S.counts.filter(function(c){return c.unit===unit&&c.kind===kind&&c.code===code&&c.date===b.date&&c.qty!==''&&c.qty!==undefined})
+  .forEach(function(c){out.push({company:c.company||'',batch:c.batch||'',expiry:c.expiry||'',qty:+c.qty||0,src:'جرد'})});
+ movesOf(unit,kind,code).filter(function(m){return m.dir==='in'})
+  .forEach(function(m){out.push({company:m.company||'',batch:m.batch||'',expiry:m.expiry||'',qty:+m.qty||0,src:'وارد'})});
+ return out.sort(function(a,c){return (a.expiry||'9999').localeCompare(c.expiry||'9999')});
+}
+function nearestExpiry(unit,kind,code){var l=lotsOf(unit,kind,code).filter(function(x){return x.expiry});return l.length?l[0].expiry:''}
+function addMove(o){
+ o.id=uid();o.ts=Date.now();o.date=o.date||today();o.unit=ME.unit;o.user=ME.id;o.synced=false;
+ S.moves.push(o);save();sync(true);
+}
+
+/* ---------- شاشة السجل: الأصناف بأرصدتها ---------- */
+function ledgerV(){
+ var regs=regsPresent(ME.unit);
+ var h='<div class="card"><div class="pillbar">'+
+  '<button class="'+(KIND==='drug'?'act':'')+'" onclick="KIND=\'drug\';REG=\'\';render()">الأدوية</button>'+
+  '<button class="'+(KIND==='supply'?'act':'')+'" onclick="KIND=\'supply\';REG=\'\';render()">المستلزمات</button>'+
+  '<button class="gh" onclick="newItem()">+ صنف جديد</button></div>';
+ if(!REG){
+  h+='<p class="muted">اختر السجل — الترتيب والأرقام مطابقة لفهرس السجل الورقي. الرصيد يُحسب من الوارد والصادر.</p></div>';
+  regs.forEach(function(r){
+   var its=unitItems(ME.unit,KIND).filter(function(i){return regOf(i)===r});
+   if(!its.length)return;
+   var tot=0,bad=0;
+   its.forEach(function(i){tot+=balanceOf(ME.unit,KIND,i.c);
+     var st=statusOf(nearestExpiry(ME.unit,KIND,i.c));if(st==='منتهي'||st==='قريب النفاد')bad++});
+   h+='<div class="item" onclick="REG=\''+r+'\';render()" style="cursor:pointer"><div class="rowb"><div style="flex:1">'+
+     '<div class="nm">'+esc(r)+'</div><div class="sb">'+its.length+' مادة · الرصيد '+tot.toLocaleString('en-US')+'</div></div>'+
+     (bad?'<span class="tag a">'+bad+' تحتاج انتباهاً</span>':'')+'<span class="tag">افتح ›</span></div></div>';
+  });
+  return h;
+ }
+ var arr=unitItems(ME.unit,KIND).filter(function(i){return regOf(i)===REG});
+ if(Q){var q=Q.toLowerCase();arr=arr.filter(function(i){return (i.n+' '+i.c).toLowerCase().indexOf(q)>=0})}
+ var sk={idx:function(a,b){return (regNo(a.c)||999)-(regNo(b.c)||999)},
+   exp:function(a,b){return (nearestExpiry(ME.unit,KIND,a.c)||'9999').localeCompare(nearestExpiry(ME.unit,KIND,b.c)||'9999')},
+   qty:function(a,b){return balanceOf(ME.unit,KIND,b.c)-balanceOf(ME.unit,KIND,a.c)},
+   name:function(a,b){return String(a.n).localeCompare(String(b.n))}};
+ arr=arr.slice().sort(sk[SORTBY]||sk.idx);
+ h+='<div class="rowb" style="margin-bottom:6px"><button class="gh" onclick="REG=\'\';render()">‹ كل السجلات</button>'+
+  '<b style="flex:1;text-align:center">'+esc(REG)+'</b></div>'+
+  '<input placeholder="ابحث داخل السجل…" value="'+esc(Q)+'" oninput="Q=this.value;render()">'+
+  '<div class="pillbar">'+[['idx','ترتيب الفهرس'],['exp','الأقرب نفاداً'],['qty','الأكبر رصيداً'],['name','الاسم']]
+   .map(function(o){return '<button class="'+(SORTBY===o[0]?'act':'')+'" onclick="SORTBY=\''+o[0]+'\';render()">'+o[1]+'</button>'}).join('')+
+  '</div></div>';
+ h+=arr.map(function(i){
+  var bal=balanceOf(ME.unit,KIND,i.c), ex=nearestExpiry(ME.unit,KIND,i.c), st=statusOf(ex);
+  var lots=lotsOf(ME.unit,KIND,i.c), rn=regNo(i.c), rp=regPage(i.c);
+  return '<div class="item '+(st==='منتهي'?'diff':'')+'" onclick="itemPage(\''+i.c+'\')" style="cursor:pointer">'+
+   '<div class="rowb"><div style="flex:1">'+
+   '<div class="nm">'+(rn?'<span class="tag b">'+rn+'</span> ':'')+esc(i.n)+(rp?' <span class="tag">صفحة '+rp+'</span>':'')+'</div>'+
+   '<div class="sb">'+esc(i.s||'')+'</div>'+
+   '<div class="sb">'+(lots.length>1?lots.length+' وجبات · ':'')+(ex?'أقرب نفاد '+ex:'بلا تاريخ نفاد')+'</div></div>'+
+   '<div style="text-align:center"><div class="big">'+bal.toLocaleString('en-US')+'</div>'+
+   (st?'<span class="tag '+(st==='منتهي'?'r':st==='قريب النفاد'?'a':'g')+'">'+st+'</span>':'')+'</div></div></div>';
+ }).join('')||'<div class="card muted">لا أصناف في هذا السجل</div>';
+ return h;
+}
+
+/* ---------- صفحة الصنف: الحركات ---------- */
+function itemPage(code){
+ var it=items(KIND).find(function(i){return i.c===code});if(!it)return;
+ var bal=balanceOf(ME.unit,KIND,code), b=baseOf(ME.unit,KIND,code), mv=movesOf(ME.unit,KIND,code), lots=lotsOf(ME.unit,KIND,code);
+ var rn=regNo(code), rp=regPage(code);
+ var h='<div class="rowb" style="justify-content:space-between"><h2 style="margin:0">'+esc(it.n)+'</h2>'+
+  '<button class="gh" onclick="closeM()">إغلاق</button></div>'+
+  '<div class="muted">'+esc(regOf(it))+(rn?' · تسلسل '+rn:'')+(rp?' · صفحة '+rp:'')+'</div>'+
+  '<div class="card" style="background:#F4F7FC;margin-top:8px"><div class="rowb">'+
+   '<div style="flex:1"><div class="nm" style="font-size:19px">الرصيد: '+bal.toLocaleString('en-US')+'</div>'+
+   '<div class="sb">آخر جرد '+(b.date==='0000-00-00'?'—':b.date)+' بكمية '+b.qty.toLocaleString('en-US')+'</div></div>'+
+   '<span class="tag '+(statusOf(nearestExpiry(ME.unit,KIND,code))==='منتهي'?'r':'a')+'">'+(nearestExpiry(ME.unit,KIND,code)||'بلا نفاد')+'</span>'+
+  '</div></div>'+
+  '<div class="rowb"><button class="ok" style="flex:1" onclick="moveBox(\''+code+'\',\'in\')">+ تسجيل وارد</button>'+
+  '<button class="warn" style="flex:1;background:#8A6100;color:#fff" onclick="moveBox(\''+code+'\',\'out\')">− تسجيل صادر</button></div>'+
+  '<button class="gh" style="width:100%;margin-top:6px" onclick="auditBox(\''+code+'\')">✓ تدقيق الجرد (العد الفعلي)</button>'+
+  '<div class="sep"></div><h2>الحركات</h2>'+
+  (mv.length?'<table><tr><th>التاريخ</th><th>من / إلى</th><th>الكتاب</th><th>وارد</th><th>صادر</th><th>الباقي</th></tr>'+
+    (function(){var run=b.qty,rows=mv.slice().reverse().map(function(m){
+       run+=(m.dir==='in'?1:-1)*(+m.qty||0);
+       return '<tr><td>'+m.date+'</td><td style="text-align:right">'+esc(m.party||'')+'</td><td>'+esc(m.doc||'')+'</td>'+
+        '<td>'+(m.dir==='in'?(+m.qty).toLocaleString('en-US'):'')+'</td>'+
+        '<td>'+(m.dir==='out'?(+m.qty).toLocaleString('en-US'):'')+'</td><td><b>'+run.toLocaleString('en-US')+'</b></td></tr>'});
+      return rows.reverse().join('')})()+'</table>'
+   :'<p class="muted">لا حركات بعد آخر جرد.</p>')+
+  '<div class="sep"></div><h2>الوجبات داخل الرصيد</h2>'+
+  (lots.length?lots.map(function(l){var st=statusOf(l.expiry);
+     return '<div class="item '+(st==='منتهي'?'diff':'')+'"><div class="rowb"><div style="flex:1">'+
+      '<div class="nm">'+(l.company?esc(l.company):'بلا شركة')+' — '+l.qty.toLocaleString('en-US')+'</div>'+
+      '<div class="sb">'+(l.batch?'وجبة '+esc(l.batch)+' · ':'')+(l.expiry||'بلا تاريخ')+' · '+l.src+'</div></div>'+
+      (st?'<span class="tag '+(st==='منتهي'?'r':st==='قريب النفاد'?'a':'g')+'">'+st+'</span>':'')+'</div></div>'}).join('')
+   :'<p class="muted">لا وجبات مسجّلة.</p>')+
+  '<p class="muted">عند الصرف تُصرف الوجبة الأقرب نفاداً أولاً (FEFO).</p>';
+ openM(h);
+}
+
+/* ---------- تدقيق الجرد: العد الفعلي مقابل الرصيد المحسوب ---------- */
+var AUDIT=null;
+function auditBox(code){
+ var lots=lotsOf(ME.unit,KIND,code);
+ AUDIT={code:code,rows:lots.length?lots.map(function(l){return {company:l.company,batch:l.batch,expiry:l.expiry,qty:l.qty}}):[{company:'',batch:'',expiry:'',qty:''}]};
+ auditDraw();
+}
+function auditAdd(){AUDIT.rows.push({company:'',batch:'',expiry:'',qty:''});auditDraw()}
+function auditDel(i){AUDIT.rows.splice(i,1);if(!AUDIT.rows.length)AUDIT.rows=[{company:'',batch:'',expiry:'',qty:''}];auditDraw()}
+function auditSet(i,k,v){AUDIT.rows[i][k]=v;if(k==='qty')auditTot()}
+function auditSum(){var t=0;AUDIT.rows.forEach(function(r){t+=(+r.qty||0)});return t}
+function auditTot(){
+ var bal=balanceOf(ME.unit,KIND,AUDIT.code),t=auditSum(),d=t-bal,e=document.getElementById('audsum');
+ if(e)e.innerHTML='العد الفعلي <b>'+t.toLocaleString('en-US')+'</b> · الرصيد المحسوب <b>'+bal.toLocaleString('en-US')+'</b> · '+
+   (d===0?'<span class="tag g">مطابق</span>':'<span class="tag r">فرق '+(d>0?'+':'')+d.toLocaleString('en-US')+'</span>');
+}
+function auditDraw(){
+ var it=items(KIND).find(function(i){return i.c===AUDIT.code});
+ var h='<h2>تدقيق الجرد — '+esc(it.n)+'</h2>'+
+  '<p class="muted">اكتب ما عددته فعلاً في كل وجبة. يبقى الرصيد المحسوب ظاهراً، ويُسجَّل الفرق ولا يُمحى شيء.</p>'+
+  '<div class="warn" id="audsum" style="margin:8px 0"></div>'+
+  AUDIT.rows.map(function(r,i){
+   return '<div class="item"><div class="grid2">'+
+    '<div><label>الشركة</label><input list="comps2" value="'+esc(r.company||'')+'" oninput="auditSet('+i+',\'company\',this.value)"></div>'+
+    '<div><label>رقم الوجبة</label><input value="'+esc(r.batch||'')+'" oninput="auditSet('+i+',\'batch\',this.value)"></div>'+
+    '<div><label>تاريخ النفاد</label><input type="date" value="'+esc(r.expiry||'')+'" oninput="auditSet('+i+',\'expiry\',this.value)"></div>'+
+    '<div><label>العدد الفعلي</label><input type="number" inputmode="numeric" value="'+(r.qty===''||r.qty===undefined?'':r.qty)+'" oninput="auditSet('+i+',\'qty\',this.value)"></div>'+
+    '</div><button class="gh" onclick="auditDel('+i+')">حذف الوجبة</button></div>'}).join('')+
+  '<datalist id="comps2">'+COMPANIES.map(function(c){return '<option value="'+esc(c)+'">'}).join('')+'</datalist>'+
+  '<button class="gh" onclick="auditAdd()">+ وجبة أخرى</button>'+
+  '<div class="rowb" style="margin-top:11px"><button class="ok" style="flex:1" onclick="saveAudit()">حفظ الجرد</button>'+
+  '<button class="gh" onclick="closeM()">إلغاء</button></div>';
+ openM(h);auditTot();
+}
+function saveAudit(){
+ var code=AUDIT.code,it=items(KIND).find(function(i){return i.c===code});
+ var bal=balanceOf(ME.unit,KIND,code),tot=auditSum(),diff=tot-bal,d=today(),now=Date.now();
+ var ex=lotsToday(ME.unit,KIND,code);
+ AUDIT.rows.forEach(function(r,i){
+  var row=ex[i];
+  if(!row){row={id:uid(),unit:ME.unit,kind:KIND,code:code,name:it.n,spec:it.s,cat:it.g,date:d,lot:i+1};S.counts.push(row)}
+  row.company=r.company||'';row.batch=r.batch||'';row.expiry=r.expiry||'';row.qty=(+r.qty||0);
+  row.book=(i===0?bal:'');row.diff=(i===0?diff:'');row.user=ME.id;row.ts=now+i;row.synced=false;
+ });
+ for(var j=AUDIT.rows.length;j<ex.length;j++){ex[j].qty=0;ex[j].ts=now+j;ex[j].synced=false}
+ save();sync(true);closeM();render();
+ toast(diff===0?'الجرد مطابق ✓':'سُجّل الجرد — فرق '+(diff>0?'+':'')+diff);
+}
+
+function moveBox(code,dir){
+ var it=items(KIND).find(function(i){return i.c===code});
+ var lots=lotsOf(ME.unit,KIND,code), sug=lots.filter(function(l){return l.expiry})[0];
+ var parties=dir==='in'?PARTIES_IN:PARTIES_OUT;
+ openM('<h2>'+(dir==='in'?'تسجيل وارد':'تسجيل صادر')+' — '+esc(it.n)+'</h2>'+
+  '<div class="muted">الرصيد الحالي: '+balanceOf(ME.unit,KIND,code).toLocaleString('en-US')+'</div>'+
+  (dir==='out'&&sug?'<div class="warn" style="margin-top:8px">الأقرب نفاداً: '+(sug.company||'بلا شركة')+' — '+sug.expiry+' (كمية '+sug.qty+')</div>':'')+
+  '<label>'+(dir==='in'?'الواردة من':'الصادرة إلى')+'</label>'+
+  '<select id="mp">'+parties.map(function(p){return '<option>'+esc(p)+'</option>'}).join('')+'</select>'+
+  '<label>الكمية</label><input type="number" inputmode="numeric" id="mq">'+
+  '<label>رقم القائمة أو الكتاب</label><input id="md" placeholder="'+(dir==='in'?'رقم كتاب التجهيز':'رقم الطلبية أو الكتاب')+'">'+
+  (dir==='in'?'<div class="grid2"><div><label>الشركة</label><input list="comps" id="mc"></div>'+
+     '<div><label>رقم الوجبة</label><input id="mb"></div>'+
+     '<div><label>تاريخ النفاد</label><input type="date" id="me"></div></div>'+
+     '<datalist id="comps">'+COMPANIES.map(function(c){return '<option value="'+esc(c)+'">'}).join('')+'</datalist>':'')+
+  '<label>ملاحظة</label><input id="mn">'+
+  '<div class="rowb" style="margin-top:11px"><button class="ok" style="flex:1" onclick="saveMove(\''+code+'\',\''+dir+'\')">حفظ الحركة</button>'+
+  '<button class="gh" onclick="closeM()">إلغاء</button></div>');
+ setTimeout(function(){var q=document.getElementById('mq');if(q)q.focus()},120);
+}
+function saveMove(code,dir){
+ var it=items(KIND).find(function(i){return i.c===code});
+ var q=parseFloat((document.getElementById('mq')||{}).value||'0');
+ if(!q||q<=0)return toast('اكتب كمية صحيحة');
+ if(dir==='out'&&q>balanceOf(ME.unit,KIND,code))return toast('الكمية أكبر من الرصيد');
+ var g=function(id){var e=document.getElementById(id);return e?e.value:''};
+ addMove({kind:KIND,code:code,name:it.n,reg:regOf(it),dir:dir,qty:q,party:g('mp'),doc:g('md'),
+          company:g('mc'),batch:g('mb'),expiry:g('me'),note:g('mn')});
+ closeM();render();toast(dir==='in'?'سُجّل الوارد ✓':'سُجّل الصادر ✓');
+}
+/* ---------- صرف طلبية وحدة بضغطة ---------- */
+function pendingOrders(){return S.orders.filter(function(o){return o.type==='store'&&o.status!=='صُرفت'})
+  .sort(function(a,b){return b.ts-a.ts})}
+function fulfil(id){
+ var o=S.orders.find(function(x){return x.id===id});if(!o)return;
+ if(!confirm('صرف '+o.lines.length+' صنف إلى '+unitName(o.unit)+'؟'))return;
+ var n=0;
+ o.lines.forEach(function(l){
+  var kind=String(l.code).indexOf('MED')===0?'supply':'drug';
+  var it=items(kind).find(function(i){return i.c===l.code});
+  addMove({kind:kind,code:l.code,name:l.name,reg:it?regOf(it):'',dir:'out',qty:+l.qty||0,
+           party:unitName(o.unit),doc:'طلبية '+o.date,note:'صرف طلبية'});
+  n++;
+ });
+ o.status='صُرفت';o.ts=Date.now();o.synced=false;save();sync(true);render();
+ toast('صُرفت '+n+' صنف ✓');
+}
+
+
+function ordersInV(){
+ var p=pendingOrders(), done=S.orders.filter(function(o){return o.type==='store'&&o.status==='صُرفت'}).slice(-10).reverse();
+ var h='<div class="card"><h2>طلبيات الوحدات</h2><p class="muted">اضغط «صرف الطلبية» فيُخصم كل صنف من رصيد المذخر ويُسجَّل صادراً باسم الوحدة.</p></div>';
+ h+=p.length?p.map(function(o){
+  return '<div class="item"><div class="nm">'+esc(unitName(o.unit))+' — '+o.lines.length+' صنف</div>'+
+   '<div class="sb">'+esc(userName(o.user))+' · '+o.date+(o.note?' · '+esc(o.note):'')+'</div>'+
+   '<div class="sb" style="color:var(--txt);margin-top:4px">'+o.lines.map(function(l){
+     var kind=String(l.code).indexOf('MED')===0?'supply':'drug';
+     var bal=balanceOf('mathkar',kind,l.code);
+     return esc(l.name)+' <b>'+l.qty+'</b>'+(bal<l.qty?' <span style="color:#9C0006">(الرصيد '+bal+')</span>':'')}).join(' · ')+'</div>'+
+   '<div class="rowb" style="margin-top:7px"><button class="ok" style="flex:1" onclick="fulfil(\''+o.id+'\')">صرف الطلبية</button></div></div>'
+ }).join(''):'<div class="card muted">لا توجد طلبيات بانتظار الصرف.</div>';
+ if(done.length)h+='<div class="card"><h2>آخر ما صُرف</h2>'+done.map(function(o){
+   return '<div class="item"><div class="nm">'+esc(unitName(o.unit))+' — '+o.lines.length+' صنف</div><div class="sb">'+o.date+' · صُرفت</div></div>'}).join('')+'</div>';
+ return h;
+}
 
 /* ---------- شاشة المسؤول ---------- */
 function unitV(u){
