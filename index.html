@@ -125,7 +125,7 @@ function unitName(id){var u=ORG.units.find(function(x){return x.id===id});return
 function userName(id){var u=ORG.users.find(function(x){return x.id===id});return u?u.name:id}
 function initials(n){var w=String(n||'').trim().split(/\s+/);return ((w[0]||'')[0]||'')+((w[1]||'')[0]||'')}
 
-var CODE_REG={"DRG-001":{"reg":"سجل المؤثرات العقلية","no":1,"page":1},"DRG-010":{"reg":"سجل الأقراص","no":49,"page":""},"DRG-002":{"reg":"سجل الأقراص","no":46,"page":""},"DRG-017":{"reg":"سجل الأقراص","no":52,"page":""},"DRG-015":{"reg":"سجل المؤثرات العقلية","no":5,"page":41},"DRG-019":{"reg":"سجل الأقراص","no":53,"page":""},"DRG-004":{"reg":"سجل المؤثرات العقلية","no":7,"page":61},"DRG-074":{"reg":"سجل المؤثرات العقلية","no":8,"page":71},"DRG-005":{"reg":"سجل المؤثرات العقلية","no":9,"page":81},"DRG-055":{"reg":"سجل المؤثرات العقلية","no":10,"page":91},"DRG-006":{"reg":"سجل المؤثرات العقلية","no":11,"page":101},"DRG-016":{"reg":"سجل المؤثرات العقلية","no":12,"page":111},"DRG-007":{"reg":"سجل المؤثرات العقلية","no":13,"page":121},"DRG-008":{"reg":"سجل الأقراص","no":47,"page":""},"DRG-009":{"reg":"سجل الأقراص","no":48,"page":""},"DRG-020":{"reg":"سجل الأقراص","no":54,"page":""},"DRG-011":{"reg":"سجل الأقراص","no":50,"page":""},"DRG-012":{"reg":"سجل الأقراص","no":51,"page":""},"DRG-021":{"reg":"سجل المؤثرات العقلية","no":23,"page":175},"DRG-014":{"reg":"سجل المؤثرات العقلية","no":24,"page":201},"DRG-003":{"reg":"سجل المؤثرات العقلية","no":25,"page":45},"DRG-022":{"reg":"سجل الأقراص","no":1,"page":1},"DRG-034":{"reg":"سجل الأقراص","no":2,"page":5},"DRG-037":{"reg":"سجل الأقراص","no":3,"page":7},"DRG-039":{"reg":"سجل الأقراص","no":4,"page":9},"DRG-038":{"reg":"سجل الأقراص","no":5,"page":13},"DRG-041":{"reg":"سجل الأقراص","no":6,"page":19},"DRG-029":{"reg":"سجل الأقراص","no":7,"page":29},"DRG-044":{"reg":"سجل الأقراص","no":8,"page":37},"DRG-032":{"reg":"سجل الأقراص","no":10,"page":53},"DRG-035":{"reg":"سجل الأقراص","no":11,"page":57},"DRG-024":{"reg":"سجل الأقراص","no":12,"page":63},"DRG-033":{"reg":"سجل الأقراص","no":13,"page":71},"DRG-025":{"reg":"سجل الأقراص","no":17,"page":103},"DRG-031":{"reg":"سجل الأقراص","no":18,"page":111},"DRG-026":{"reg":"سجل الأقراص","no":19,"page":119},"DRG-027":{"reg":"سجل الأقراص","no":20,"page":127},"DRG-028":{"reg":"سجل الأقراص","no":21,"page":133},"DRG-045":{"reg":"سجل الأقراص","no":39,"page":217},"DRG-040":{"reg":"سجل الأقراص","no":40,"page":223},"DRG-036":{"reg":"سجل الأقراص","no":41,"page":44},"DRG-013":{"reg":"سجل الأقراص","no":43,"page":115},"DRG-042":{"reg":"سجل الأقراص","no":44,"page":151},"DRG-018":{"reg":"سجل الأقراص","no":45,"page":235},"DRG-093":{"reg":"سجل الأمبولات","no":2,"page":9},"DRG-057":{"reg":"سجل الأمبولات","no":4,"page":23},"DRG-050":{"reg":"سجل الأمبولات","no":5,"page":31},"DRG-082":{"reg":"سجل الأمبولات","no":6,"page":41},"DRG-061":{"reg":"سجل الأمبولات","no":7,"page":49},"DRG-062":{"reg":"سجل الأمبولات","no":8,"page":55},"DRG-051":{"reg":"سجل الأمبولات","no":10,"page":65},"DRG-089":{"reg":"سجل الأمبولات","no":12,"page":83},"DRG-060":{"reg":"سجل الأمبولات","no":13,"page":87},"DRG-071":{"reg":"سجل الأمبولات","no":14,"page":91},"DRG-058":{"reg":"سجل الأمبولات","no":15,"page":97},"DRG-056":{"reg":"سجل الأمبولات","no":16,"page":111},"DRG-073":{"reg":"سجل الأمبولات","no":17,"page":117},"DRG-067":{"reg":"سجل الأمبولات","no":18,"page":123},"DRG-053":{"reg":"سجل الأمبولات","no":19,"page":129},"DRG-087":{"reg":"سجل الأمبولات","no":24,"page":146},"DRG-063":{"reg":"سجل الأمبولات","no":26,"page":149},"DRG-054":{"reg":"سجل الأمبولات","no":29,"page":173},"DRG-052":{"reg":"سجل الأمبولات","no":31,"page":183},"DRG-081":{"reg":"سجل الأمبولات","no":32,"page":189},"DRG-096":{"reg":"سجل المضادات الحياتية","no":1,"page":1},"DRG-101":{"reg":"سجل المضادات الحياتية","no":2,"page":10},"DRG-118":{"reg":"سجل المضادات الحياتية","no":3,"page":15},"DRG-100":{"reg":"سجل المضادات الحياتية","no":4,"page":21},"DRG-104":{"reg":"سجل المضادات الحياتية","no":5,"page":31},"DRG-097":{"reg":"سجل المضادات الحياتية","no":6,"page":41},"DRG-102":{"reg":"سجل المضادات الحياتية","no":7,"page":51},"DRG-098":{"reg":"سجل المضادات الحياتية","no":8,"page":55},"DRG-115":{"reg":"سجل المضادات الحياتية","no":13,"page":61},"DRG-122":{"reg":"سجل المضادات الحياتية","no":14,"page":69},"DRG-103":{"reg":"سجل المضادات الحياتية","no":15,"page":75},"DRG-099":{"reg":"سجل المضادات الحياتية","no":16,"page":81},"DRG-113":{"reg":"سجل المضادات الحياتية","no":18,"page":70},"DRG-078":{"reg":"سجل المساحيق والشرابات","no":1,"page":1},"DRG-107":{"reg":"سجل المساحيق والشرابات","no":2,"page":11},"MED-024":{"reg":"سجل المساحيق والشرابات","no":3,"page":19},"DRG-106":{"reg":"سجل المساحيق والشرابات","no":5,"page":25},"DRG-110":{"reg":"سجل المساحيق والشرابات","no":6,"page":35},"DRG-114":{"reg":"سجل المساحيق والشرابات","no":7,"page":41},"DRG-N01":{"reg":"سجل الأمبولات","no":33,"page":""},"DRG-105":{"reg":"سجل المساحيق والشرابات","no":9,"page":51},"DRG-111":{"reg":"سجل المساحيق والشرابات","no":10,"page":57},"DRG-112":{"reg":"سجل المساحيق والشرابات","no":13,"page":55},"MED-016":{"reg":"سجل المستلزمات","no":4,"page":15},"MED-099":{"reg":"سجل المستلزمات","no":5,"page":8},"MED-011":{"reg":"سجل المستلزمات","no":9,"page":41},"MED-014":{"reg":"سجل المستلزمات","no":10,"page":45},"MED-034":{"reg":"سجل المستلزمات","no":11,"page":51},"MED-035":{"reg":"سجل المستلزمات","no":12,"page":57},"MED-064":{"reg":"سجل المستلزمات","no":13,"page":61},"MED-006":{"reg":"سجل المستلزمات","no":17,"page":85},"MED-009":{"reg":"سجل المستلزمات","no":20,"page":99},"MED-003":{"reg":"سجل المستلزمات","no":22,"page":113},"MED-005":{"reg":"سجل المستلزمات","no":26,"page":249},"MED-045":{"reg":"سجل المستلزمات","no":30,"page":257},"MED-007":{"reg":"سجل المستلزمات","no":31,"page":261},"MED-004":{"reg":"سجل المستلزمات","no":32,"page":262},"MED-085":{"reg":"سجل المستلزمات","no":37,"page":145},"MED-027":{"reg":"سجل المستلزمات","no":45,"page":224},"MED-012":{"reg":"سجل المستلزمات","no":46,"page":231},"MED-N04":{"reg":"سجل المستلزمات","no":48,"page":239},"DRG-023":{"reg":"سجل الأقراص","no":55,"page":""},"DRG-065":{"reg":"سجل المغذيات","no":1,"page":""},"DRG-068":{"reg":"سجل المغذيات","no":2,"page":""},"DRG-069":{"reg":"سجل المغذيات","no":3,"page":""},"DRG-070":{"reg":"سجل المغذيات","no":4,"page":""}};
+var UREG={"mathkar":{"DRG-001":[{"reg":"سجل المؤثرات العقلية","no":1,"page":1}],"DRG-010":[{"reg":"سجل الأقراص","no":49,"page":null}],"DRG-002":[{"reg":"سجل الأقراص","no":46,"page":null}],"DRG-017":[{"reg":"سجل الأقراص","no":52,"page":null}],"DRG-015":[{"reg":"سجل المؤثرات العقلية","no":5,"page":41}],"DRG-019":[{"reg":"سجل الأقراص","no":53,"page":null}],"DRG-004":[{"reg":"سجل المؤثرات العقلية","no":7,"page":61}],"DRG-074":[{"reg":"سجل المؤثرات العقلية","no":8,"page":71}],"DRG-005":[{"reg":"سجل المؤثرات العقلية","no":9,"page":81}],"DRG-055":[{"reg":"سجل المؤثرات العقلية","no":10,"page":91}],"DRG-006":[{"reg":"سجل المؤثرات العقلية","no":11,"page":101}],"DRG-016":[{"reg":"سجل المؤثرات العقلية","no":12,"page":111}],"DRG-007":[{"reg":"سجل المؤثرات العقلية","no":13,"page":121}],"DRG-008":[{"reg":"سجل الأقراص","no":47,"page":null}],"DRG-009":[{"reg":"سجل الأقراص","no":48,"page":null}],"DRG-020":[{"reg":"سجل الأقراص","no":54,"page":null}],"DRG-011":[{"reg":"سجل الأقراص","no":50,"page":null}],"DRG-012":[{"reg":"سجل الأقراص","no":51,"page":null}],"DRG-021":[{"reg":"سجل المؤثرات العقلية","no":23,"page":175}],"DRG-014":[{"reg":"سجل المؤثرات العقلية","no":24,"page":201}],"DRG-003":[{"reg":"سجل المؤثرات العقلية","no":25,"page":45}],"DRG-022":[{"reg":"سجل الأقراص","no":1,"page":1}],"DRG-034":[{"reg":"سجل الأقراص","no":2,"page":5}],"DRG-037":[{"reg":"سجل الأقراص","no":3,"page":7}],"DRG-039":[{"reg":"سجل الأقراص","no":4,"page":9}],"DRG-038":[{"reg":"سجل الأقراص","no":5,"page":13}],"DRG-041":[{"reg":"سجل الأقراص","no":6,"page":19}],"DRG-029":[{"reg":"سجل الأقراص","no":7,"page":29}],"DRG-044":[{"reg":"سجل الأقراص","no":8,"page":37}],"DRG-032":[{"reg":"سجل الأقراص","no":10,"page":53}],"DRG-035":[{"reg":"سجل الأقراص","no":11,"page":57}],"DRG-024":[{"reg":"سجل الأقراص","no":12,"page":63}],"DRG-033":[{"reg":"سجل الأقراص","no":13,"page":71}],"DRG-025":[{"reg":"سجل الأقراص","no":17,"page":103}],"DRG-031":[{"reg":"سجل الأقراص","no":18,"page":111}],"DRG-026":[{"reg":"سجل الأقراص","no":19,"page":119}],"DRG-027":[{"reg":"سجل الأقراص","no":20,"page":127}],"DRG-028":[{"reg":"سجل الأقراص","no":21,"page":133}],"DRG-045":[{"reg":"سجل الأقراص","no":39,"page":217}],"DRG-040":[{"reg":"سجل الأقراص","no":40,"page":223}],"DRG-036":[{"reg":"سجل الأقراص","no":41,"page":44}],"DRG-013":[{"reg":"سجل الأقراص","no":43,"page":115}],"DRG-042":[{"reg":"سجل الأقراص","no":44,"page":151}],"DRG-018":[{"reg":"سجل الأقراص","no":45,"page":235}],"DRG-093":[{"reg":"سجل الأمبولات","no":2,"page":9}],"DRG-057":[{"reg":"سجل الأمبولات","no":4,"page":23}],"DRG-050":[{"reg":"سجل الأمبولات","no":5,"page":31}],"DRG-082":[{"reg":"سجل الأمبولات","no":6,"page":41}],"DRG-061":[{"reg":"سجل الأمبولات","no":7,"page":49}],"DRG-062":[{"reg":"سجل الأمبولات","no":8,"page":55}],"DRG-051":[{"reg":"سجل الأمبولات","no":10,"page":65}],"DRG-089":[{"reg":"سجل الأمبولات","no":12,"page":83}],"DRG-060":[{"reg":"سجل الأمبولات","no":13,"page":87}],"DRG-071":[{"reg":"سجل الأمبولات","no":14,"page":91}],"DRG-058":[{"reg":"سجل الأمبولات","no":15,"page":97}],"DRG-056":[{"reg":"سجل الأمبولات","no":16,"page":111}],"DRG-073":[{"reg":"سجل الأمبولات","no":17,"page":117}],"DRG-067":[{"reg":"سجل الأمبولات","no":18,"page":123}],"DRG-053":[{"reg":"سجل الأمبولات","no":19,"page":129}],"DRG-087":[{"reg":"سجل الأمبولات","no":24,"page":146}],"DRG-063":[{"reg":"سجل الأمبولات","no":26,"page":149}],"DRG-054":[{"reg":"سجل الأمبولات","no":29,"page":173}],"DRG-052":[{"reg":"سجل الأمبولات","no":31,"page":183}],"DRG-081":[{"reg":"سجل الأمبولات","no":32,"page":189}],"DRG-096":[{"reg":"سجل المضادات الحياتية","no":1,"page":1}],"DRG-101":[{"reg":"سجل المضادات الحياتية","no":2,"page":10}],"DRG-118":[{"reg":"سجل المضادات الحياتية","no":3,"page":15}],"DRG-100":[{"reg":"سجل المضادات الحياتية","no":4,"page":21}],"DRG-104":[{"reg":"سجل المضادات الحياتية","no":5,"page":31}],"DRG-097":[{"reg":"سجل المضادات الحياتية","no":6,"page":41}],"DRG-102":[{"reg":"سجل المضادات الحياتية","no":7,"page":51}],"DRG-098":[{"reg":"سجل المضادات الحياتية","no":8,"page":55}],"DRG-115":[{"reg":"سجل المضادات الحياتية","no":13,"page":61}],"DRG-122":[{"reg":"سجل المضادات الحياتية","no":14,"page":69}],"DRG-103":[{"reg":"سجل المضادات الحياتية","no":15,"page":75}],"DRG-099":[{"reg":"سجل المضادات الحياتية","no":16,"page":81}],"DRG-113":[{"reg":"سجل المضادات الحياتية","no":18,"page":70}],"DRG-078":[{"reg":"سجل المساحيق والشرابات","no":1,"page":1}],"DRG-107":[{"reg":"سجل المساحيق والشرابات","no":2,"page":11}],"MED-024":[{"reg":"سجل المساحيق والشرابات","no":3,"page":19}],"DRG-106":[{"reg":"سجل المساحيق والشرابات","no":5,"page":25}],"DRG-110":[{"reg":"سجل المساحيق والشرابات","no":6,"page":35}],"DRG-114":[{"reg":"سجل المساحيق والشرابات","no":7,"page":41}],"DRG-N01":[{"reg":"سجل الأمبولات","no":33,"page":null}],"DRG-105":[{"reg":"سجل المساحيق والشرابات","no":9,"page":51}],"DRG-111":[{"reg":"سجل المساحيق والشرابات","no":10,"page":57}],"DRG-112":[{"reg":"سجل المساحيق والشرابات","no":13,"page":55}],"MED-016":[{"reg":"سجل المستلزمات","no":4,"page":15}],"MED-099":[{"reg":"سجل المستلزمات","no":5,"page":8}],"MED-011":[{"reg":"سجل المستلزمات","no":9,"page":41}],"MED-014":[{"reg":"سجل المستلزمات","no":10,"page":45}],"MED-034":[{"reg":"سجل المستلزمات","no":11,"page":51}],"MED-035":[{"reg":"سجل المستلزمات","no":12,"page":57}],"MED-064":[{"reg":"سجل المستلزمات","no":13,"page":61}],"MED-006":[{"reg":"سجل المستلزمات","no":17,"page":85}],"MED-009":[{"reg":"سجل المستلزمات","no":20,"page":99}],"MED-003":[{"reg":"سجل المستلزمات","no":22,"page":113}],"MED-005":[{"reg":"سجل المستلزمات","no":26,"page":249}],"MED-045":[{"reg":"سجل المستلزمات","no":30,"page":257}],"MED-007":[{"reg":"سجل المستلزمات","no":31,"page":261}],"MED-004":[{"reg":"سجل المستلزمات","no":32,"page":262}],"MED-085":[{"reg":"سجل المستلزمات","no":37,"page":145}],"MED-027":[{"reg":"سجل المستلزمات","no":45,"page":224}],"MED-012":[{"reg":"سجل المستلزمات","no":46,"page":231}],"MED-N04":[{"reg":"سجل المستلزمات","no":48,"page":239}],"DRG-023":[{"reg":"سجل الأقراص","no":55,"page":null}],"DRG-065":[{"reg":"سجل المغذيات","no":1,"page":null}],"DRG-068":[{"reg":"سجل المغذيات","no":2,"page":null}],"DRG-069":[{"reg":"سجل المغذيات","no":3,"page":null}],"DRG-070":[{"reg":"سجل المغذيات","no":4,"page":null}]},"dakhiliya":{"DRG-001":[{"reg":"سجل المؤثرات العقلية","no":1,"page":300}],"DRG-006":[{"reg":"سجل المؤثرات العقلية","no":2,"page":308}],"DRG-004":[{"reg":"سجل المؤثرات العقلية","no":3,"page":316}],"DRG-003":[{"reg":"سجل المؤثرات العقلية","no":4,"page":329}],"DRG-005":[{"reg":"سجل المؤثرات العقلية","no":5,"page":335}],"DRG-007":[{"reg":"سجل المؤثرات العقلية","no":7,"page":370}],"DRG-029":[{"reg":"سجل الأقراص","no":1,"page":1}],"DRG-038":[{"reg":"سجل الأقراص","no":2,"page":11}],"DRG-023":[{"reg":"سجل الأقراص","no":3,"page":21}],"DRG-044":[{"reg":"سجل الأقراص","no":4,"page":31}],"DRG-039":[{"reg":"سجل الأقراص","no":5,"page":41}],"DRG-024":[{"reg":"سجل الأقراص","no":6,"page":51}],"DRG-010":[{"reg":"سجل الأقراص","no":7,"page":61}],"DRG-017":[{"reg":"سجل الأقراص","no":9,"page":81}],"DRG-028":[{"reg":"سجل الأقراص","no":10,"page":91}],"DRG-025":[{"reg":"سجل الأقراص","no":11,"page":101}],"DRG-014":[{"reg":"سجل الأقراص","no":12,"page":111}],"DRG-035":[{"reg":"سجل الأقراص","no":13,"page":121}],"DRG-041":[{"reg":"سجل الأقراص","no":14,"page":131}],"DRG-022":[{"reg":"سجل الأقراص","no":15,"page":141}],"DRG-027":[{"reg":"سجل الأقراص","no":16,"page":151}],"DRG-011":[{"reg":"سجل الأقراص","no":17,"page":161}],"DRG-002":[{"reg":"سجل الأقراص","no":18,"page":171},{"reg":"سجل المشتريات","no":6,"page":203}],"DRG-032":[{"reg":"سجل الأقراص","no":19,"page":181}],"DRG-037":[{"reg":"سجل الأقراص","no":20,"page":191}],"DRG-031":[{"reg":"سجل الأقراص","no":21,"page":201}],"DRG-045":[{"reg":"سجل الأقراص","no":22,"page":211}],"DRG-020":[{"reg":"سجل الأقراص","no":23,"page":219}],"DRG-040":[{"reg":"سجل الأقراص","no":24,"page":221}],"DRG-009":[{"reg":"سجل الأقراص","no":25,"page":207},{"reg":"سجل المشتريات","no":7,"page":206}],"DRG-026":[{"reg":"سجل الأقراص","no":29,"page":205}],"DRG-008":[{"reg":"سجل الأقراص","no":30,"page":261},{"reg":"سجل المشتريات","no":2,"page":61}],"DRG-042":[{"reg":"سجل الأقراص","no":31,"page":280}],"DRG-033":[{"reg":"سجل الأقراص","no":36,"page":314}],"DRG-030":[{"reg":"سجل الأقراص","no":37,"page":279}],"DRG-015":[{"reg":"سجل الأقراص","no":38,"page":277},{"reg":"سجل المشتريات","no":5,"page":197}],"DRG-036":[{"reg":"سجل الأقراص","no":39,"page":273}],"DRG-019":[{"reg":"سجل الأقراص","no":42,"page":304},{"reg":"سجل المشتريات","no":4,"page":108}],"DRG-018":[{"reg":"سجل الأقراص","no":46,"page":255}],"DRG-034":[{"reg":"سجل الأقراص","no":47,"page":268}],"DRG-012":[{"reg":"سجل الأقراص","no":48,"page":350},{"reg":"سجل المشتريات","no":3,"page":89}],"DRG-052":[{"reg":"سجل الأمبولات","no":1,"page":17}],"DRG-062":[{"reg":"سجل الأمبولات","no":2,"page":23}],"DRG-061":[{"reg":"سجل الأمبولات","no":3,"page":34}],"DRG-056":[{"reg":"سجل الأمبولات","no":4,"page":72}],"DRG-053":[{"reg":"سجل الأمبولات","no":5,"page":79}],"DRG-063":[{"reg":"سجل الأمبولات","no":6,"page":107}],"DRG-051":[{"reg":"سجل الأمبولات","no":7,"page":110}],"DRG-060":[{"reg":"سجل الأمبولات","no":8,"page":125}],"DRG-050":[{"reg":"سجل الأمبولات","no":9,"page":133}],"DRG-058":[{"reg":"سجل الأمبولات","no":10,"page":173}],"DRG-057":[{"reg":"سجل الأمبولات","no":11,"page":228}],"DRG-055":[{"reg":"سجل الأمبولات","no":12,"page":235}],"DRG-097":[{"reg":"سجل المضادات الحياتية","no":1,"page":14}],"DRG-103":[{"reg":"سجل المضادات الحياتية","no":2,"page":72}],"DRG-100":[{"reg":"سجل المضادات الحياتية","no":3,"page":88}],"DRG-115":[{"reg":"سجل المضادات الحياتية","no":4,"page":135}],"DRG-098":[{"reg":"سجل المضادات الحياتية","no":5,"page":214}],"DRG-096":[{"reg":"سجل المضادات الحياتية","no":6,"page":220}],"DRG-104":[{"reg":"سجل المضادات الحياتية","no":7,"page":225}],"DRG-101":[{"reg":"سجل المضادات الحياتية","no":9,"page":233}],"DRG-099":[{"reg":"سجل المضادات الحياتية","no":10,"page":250}],"DRG-107":[{"reg":"سجل المساحيق والشرابات","no":1,"page":1}],"DRG-114":[{"reg":"سجل المساحيق والشرابات","no":2,"page":45}],"DRG-111":[{"reg":"سجل المساحيق والشرابات","no":3,"page":85}],"DRG-078":[{"reg":"سجل المساحيق والشرابات","no":4,"page":95}],"DRG-106":[{"reg":"سجل المساحيق والشرابات","no":5,"page":120}],"DRG-112":[{"reg":"سجل المساحيق والشرابات","no":6,"page":110}],"DRG-069":[{"reg":"سجل المغذيات","no":1,"page":1}],"DRG-066":[{"reg":"سجل المغذيات","no":2,"page":195}],"DRG-068":[{"reg":"سجل المغذيات","no":3,"page":80}],"DRG-077":[{"reg":"سجل المغذيات","no":4,"page":30}],"DRG-065":[{"reg":"سجل المغذيات","no":5,"page":40}],"DRG-070":[{"reg":"سجل المغذيات","no":6,"page":46}],"DRG-016":[{"reg":"سجل المشتريات","no":1,"page":14}],"MED-014":[{"reg":"سجل المستلزمات","no":1,"page":null}],"MED-015":[{"reg":"سجل المستلزمات","no":2,"page":11}],"MED-027":[{"reg":"سجل المستلزمات","no":3,"page":20}],"MED-031":[{"reg":"سجل المستلزمات","no":4,"page":30}],"MED-032":[{"reg":"سجل المستلزمات","no":5,"page":45}],"MED-012":[{"reg":"سجل المستلزمات","no":6,"page":75}]}};
 var REGISTERS={
  'الأدوية النفسية':'سجل المؤثرات العقلية',
  'مسكنات + ضغط + سكر':'سجل الأقراص',
@@ -145,16 +145,28 @@ var REGISTERS={
  'مستلزمات المختبر':'سجل المستلزمات',
  'مواد التعقيم والتطهير':'سجل المستلزمات'
 };
-var REG_ORDER=['سجل المؤثرات العقلية','سجل الأقراص','سجل الأمبولات','سجل المضادات الحياتية','سجل المساحيق والشرابات','سجل المغذيات','سجل المستلزمات','سجل أخرى'];
-function regOf(it){ if(!it)return 'سجل أخرى';
- var r=CODE_REG[it.c];                       /* الفهرس الورقي أولاً */
- if(r)return r.reg;
- if(it.kind==='supply'||String(it.c).indexOf('MED')===0)return 'سجل المستلزمات';
- return REGISTERS[it.g]||'سجل أخرى'; }
-function regNo(code){var r=CODE_REG[code];return r?r.no:null}
-function regPage(code){var r=CODE_REG[code];return r?r.page:null}
+var REG_ORDER=['سجل المؤثرات العقلية','سجل الأقراص','سجل الأمبولات','سجل المضادات الحياتية','سجل المساحيق والشرابات','سجل المغذيات','سجل المشتريات','سجل المستلزمات','سجل أخرى'];
+/* ===== الفهرس الورقي لكل وحدة — مادة قد تقع في أكثر من سجل (نفس الدواء بشركة أخرى) ===== */
+function regsOfItem(it,unit){
+ if(!it)return [{reg:'سجل أخرى',no:null,page:null}];
+ var u=UREG[unit||(ME?lunit():'')]||{}, r=u[it.c];
+ if(r&&r.length)return r;
+ if(it.kind==='supply'||String(it.c).indexOf('MED')===0)return [{reg:'سجل المستلزمات',no:null,page:null}];
+ return [{reg:(REGISTERS[it.g]||'سجل أخرى'),no:null,page:null}];
+}
+function regOf(it,unit){return regsOfItem(it,unit)[0].reg}
+function inReg(it,reg,unit){return regsOfItem(it,unit).some(function(p){return p.reg===reg})}
+function placeIn(code,reg,unit){
+ var u=UREG[unit||lunit()]||{}, r=u[code]||[];
+ for(var i=0;i<r.length;i++){if(r[i].reg===reg)return r[i]}
+ return {reg:reg,no:null,page:null};
+}
+function regNo(code,reg,unit){return placeIn(code,reg||REG,unit).no}
+function regPage(code,reg,unit){return placeIn(code,reg||REG,unit).page}
+function alsoIn(it,reg,unit){return regsOfItem(it,unit).filter(function(p){return p.reg!==reg}).map(function(p){return p.reg})}
 function regsPresent(unit){var m={};
- ['drug','supply'].forEach(function(k){unitItems(unit,k).forEach(function(i){m[regOf(i)]=1})});
+ ['drug','supply'].forEach(function(k){unitItems(unit,k).forEach(function(i){
+   regsOfItem(i,unit).forEach(function(p){m[p.reg]=1})})});
  return REG_ORDER.filter(function(r){return m[r]});}
 /* قائمة الوحدة = ما هو موجود فعلاً لديها (أو كل القائمة إن لم تُجرد بعد) */
 function unitItems(unit,kind){
@@ -267,6 +279,7 @@ async function sync(silent){
   var j2=await jsonp('action=pull&since='+(S.lastPull||0)+wantStaff);
   if(j2&&j2.ok){
    merge(S.counts,j2.counts);merge(S.dones,j2.dones);merge(S.addedItems,j2.items);
+   S.addedItems.forEach(registerAdded);   /* أصناف الآخرين تدخل الفهرس عندنا أيضاً */
    merge(S.shorts,j2.shorts);merge(S.notes,j2.notes);merge(S.utasks,j2.utasks);
    (j2.orders||[]).forEach(function(x){
      if(!x||!x.id)return;
@@ -391,9 +404,10 @@ function render(){
      .concat(ME.unit==='mathkar'?[['orders_in','طلبيات الوحدات','⇄'],['short','شحيح ومفقود','▤']]:[])
      .concat([['unit','وحدتي','◧'],['me','ملفي','☺']]);
  var allowed=tabs.map(function(x){return x[0]});
+ if(allowed.indexOf('jard')>=0)allowed.push('quick');   /* شاشة الإدخال السريع تابعة للجرد */
  if(!TAB||allowed.indexOf(TAB)<0)TAB=allowed[0];   /* لا يفتح أحد شاشة ليست له */
  nav.innerHTML=tabs.map(function(t){return '<button class="'+(TAB===t[0]?'act':'')+'" onclick="go(\''+t[0]+'\')"><i>'+t[2]+'</i>'+t[1]+'</button>'}).join('');
- app.innerHTML = TAB==='inv'?ledgerV():TAB==='orders_in'?ordersInV():TAB==='me'?meV():TAB==='jard'&&isLedger(ME.unit)?ledgerV():TAB==='tdash'?tdashV():TAB==='send'?sendV():TAB==='dir'?dirV():TAB==='view'?viewV()
+ app.innerHTML = TAB==='quick'?quickV():TAB==='inv'?ledgerV():TAB==='orders_in'?ordersInV():TAB==='me'?meV():TAB==='jard'&&hasRegs(ME.unit)?ledgerV():TAB==='tdash'?tdashV():TAB==='send'?sendV():TAB==='dir'?dirV():TAB==='view'?viewV()
   :TAB==='today'?todayV():TAB==='jard'?jardV():TAB==='order'?orderV():TAB==='short'?shortV():TAB==='unit'?unitV(ME.unit)
   :TAB==='dash'?dashV():TAB==='units'?unitsV():TAB==='staff'?staffV():dataV();
 }
@@ -450,6 +464,11 @@ function noteBox(tid){openM('<h2>ملاحظة (اختياري)</h2><p class="mut
  '<div class="rowb" style="margin-top:10px"><button class="ok" style="flex:1" onclick="markDone(\''+tid+'\',document.getElementById(\'nt\').value);closeM()">تسجيل</button><button class="gh" onclick="closeM()">إلغاء</button></div>')}
 
 /* ---------- الجرد ---------- */
+/* الشاشة القديمة للإدخال السريع — تبقى متاحة لوحدات الجرد اليومي */
+function quickV(){
+ return '<div class="card"><button class="gh" onclick="TAB=\'jard\';render()">‹ رجوع إلى السجلات</button>'+
+  '<p class="muted" style="margin-top:7px">إدخال سريع بدون فتح صفحة كل مادة. النتيجة نفسها.</p></div>'+jardV();
+}
 function jardV(){
  var regs=regsPresent(ME.unit);
  var h='<div class="card"><div class="pillbar">'+
@@ -459,7 +478,7 @@ function jardV(){
  if(!REG){                                   /* الشاشة الأولى: السجلات */
   h+='<p class="muted">اختر السجل — الترتيب والأرقام مطابقة لفهرس السجل الورقي.</p></div>';
   regs.forEach(function(r){
-   var its=unitItems(ME.unit,KIND).filter(function(i){return regOf(i)===r});
+   var its=unitItems(ME.unit,KIND).filter(function(i){return inReg(i,r,ME.unit)});
    if(!its.length)return;
    var done=its.filter(function(i){return itemEntered(ME.unit,KIND,i.c)}).length;
    var qty=its.reduce(function(a,i){return a+itemQty(ME.unit,KIND,i.c)},0);
@@ -486,17 +505,17 @@ function jardV(){
 }
 function list(){
  var all=unitItems(ME.unit,KIND),d=today();
- if(REG)all=all.filter(function(i){return regOf(i)===REG});
+ if(REG)all=all.filter(function(i){return inReg(i,REG,ME.unit)});
  var arr=all;
  if(Q){var q=Q.toLowerCase();arr=all.filter(function(i){return (i.n+' '+i.s+' '+i.c).toLowerCase().indexOf(q)>=0})}
  else if(VIEW==='todo')arr=all.filter(function(i){return !itemEntered(ME.unit,KIND,i.c)});
  else if(SORTBY==='todo')arr=all.filter(function(i){return !itemEntered(ME.unit,KIND,i.c)});
- var sk={idx:function(a,b){return (regNo(a.c)||999)-(regNo(b.c)||999)},
+ var sk={idx:function(a,b){return (regNo(a.c,REG,ME.unit)||999)-(regNo(b.c,REG,ME.unit)||999)},
          name:function(a,b){return String(a.n).localeCompare(String(b.n))},
          qty:function(a,b){return itemQty(ME.unit,KIND,b.c)-itemQty(ME.unit,KIND,a.c)},
          exp:function(a,b){var f=function(i){var l=lotsToday(ME.unit,KIND,i.c).map(function(r){return r.expiry}).filter(Boolean).sort();return l[0]||'9999'};
               return f(a).localeCompare(f(b))},
-         todo:function(a,b){return (regNo(a.c)||999)-(regNo(b.c)||999)}};
+         todo:function(a,b){return (regNo(a.c,REG,ME.unit)||999)-(regNo(b.c,REG,ME.unit)||999)}};
  arr=arr.slice().sort(sk[SORTBY]||sk.idx);
  var done=all.filter(function(i){return itemEntered(ME.unit,KIND,i.c)}).length;
  var pb=document.getElementById('pb');if(pb)pb.style.width=Math.round(done*100/all.length)+'%';
@@ -509,7 +528,7 @@ function list(){
   var dcol=dv===''?'#EEF2F8':(dv===0?'#C6EFCE':'#FFC7CE');
   var first=lots[0];
   var multi=lots.length>1;
-  var rn=regNo(i.c), rp=regPage(i.c);
+  var rn=regNo(i.c,REG,ME.unit), rp=regPage(i.c,REG,ME.unit);
   var body='<div class="nm">'+(rn?'<span class="tag b">'+rn+'</span> ':'')+esc(i.n)+
     (rp?' <span class="tag">صفحة '+rp+'</span>':'')+
     (multi?'<span class="tag b">'+lots.length+' وجبات</span>':'')+
@@ -573,16 +592,31 @@ function details(code){
  '<div class="rowb" style="margin-top:10px"><button class="ok" style="flex:1" onclick="saveCount(\''+code+'\',undefined,undefined,{batch:document.getElementById(\'b\').value,expiry:document.getElementById(\'e\').value,note:document.getElementById(\'n\').value});closeM();list();toast(\'حُفظ ✓\')">حفظ</button><button class="gh" onclick="closeM()">إغلاق</button></div>');
 }
 function newItem(){
- openM('<h2>إضافة صنف جديد</h2><p class="muted">يُضاف إلى قائمة الجرد الثابتة ويصل إلى بقية الأجهزة عند المزامنة.</p>'+
+ var U=hasRegs(ME.unit)?ME.unit:lunit();
+ openM('<h2>إضافة صنف جديد</h2><p class="muted">يُضاف إلى قائمة الجرد ويصل إلى بقية الأجهزة عند المزامنة. حدّد السجل الذي ينتمي إليه.</p>'+
  '<label>الاسم</label><input id="ni"><label>المواصفات / التركيز</label><input id="ns">'+
  '<label>التصنيف</label><input id="ng" placeholder="مثال: حقن ومحاليل">'+
+ (hasRegs(U)?'<label>السجل الذي ينتمي إليه</label><select id="nr">'+
+   REG_ORDER.filter(function(r){return canSeeReg(r,U)}).map(function(r){return '<option'+(r===REG?' selected':'')+'>'+esc(r)+'</option>'}).join('')+'</select>'+
+   '<div class="grid2"><div><label>تسلسل الفهرس (اختياري)</label><input type="number" inputmode="numeric" id="nn"></div>'+
+   '<div><label>رقم الصفحة (اختياري)</label><input type="number" inputmode="numeric" id="np"></div></div>':'')+
  '<div class="rowb" style="margin-top:10px"><button class="ok" style="flex:1" onclick="addItem()">إضافة</button><button class="gh" onclick="closeM()">إلغاء</button></div>')}
 function addItem(){
- var n=document.getElementById('ni').value.trim();if(!n)return toast('اكتب الاسم');
+ var g=function(id){var e=document.getElementById(id);return e?e.value:''};
+ var n=g('ni').trim();if(!n)return toast('اكتب الاسم');
+ var U=hasRegs(ME.unit)?ME.unit:lunit();
  var o={c:(KIND==='drug'?'DRG-N':'MED-N')+Date.now().toString(36).slice(-4).toUpperCase(),n:n,
-  s:document.getElementById('ns').value.trim(),g:document.getElementById('ng').value.trim()||'أصناف مضافة',
+  s:g('ns').trim(),g:g('ng').trim()||'أصناف مضافة',
+  reg:g('nr')||'',regUnit:hasRegs(U)?U:'',regNo:g('nn')||'',regPage:g('np')||'',
   kind:KIND,by:ME.id,ts:Date.now(),synced:false};
- S.addedItems.push(o);save();sync(true);closeM();list();toast('أُضيف الصنف ✓');
+ S.addedItems.push(o);registerAdded(o);save();sync(true);closeM();render();toast('أُضيف الصنف ✓');
+}
+/* الأصناف المضافة من الهاتف تدخل فهرس وحدتها فوراً */
+function registerAdded(o){
+ if(!o||!o.reg||!o.regUnit)return;
+ UREG[o.regUnit]=UREG[o.regUnit]||{};
+ UREG[o.regUnit][o.c]=[{reg:o.reg,no:(o.regNo!==''&&o.regNo!==undefined)?+o.regNo:null,
+                        page:(o.regPage!==''&&o.regPage!==undefined)?+o.regPage:null}];
 }
 function finishJard(){
  var s=jardStats(ME.unit,'drug'),s2=jardStats(ME.unit,'supply');
@@ -933,19 +967,25 @@ function myPhoto(inp){var f=inp.files[0];if(!f)return;var r=new FileReader();
 /* ================= دفتر حركات المذخر ================= */
 var PARTIES_IN=['دائرة مدينة الطب — حصة','دائرة مدينة الطب — مناقلة','شراء محلي','هبة','مناقلة من مستشفى آخر','رصيد افتتاحي'];
 var PARTIES_OUT=['الصيدلية الداخلية','الصيدلية السريرية','الصيدلية الاستشارية','الصيدلية الخافرة','مناقلة إلى مستشفى آخر','إتلاف','أخرى'];
-var LEDGER_UNITS=['mathkar'];
+var LEDGER_UNITS=['mathkar'];              /* دفتر حركات: وارد وصادر */
+var REG_UNITS=['mathkar','dakhiliya'];     /* تتصفّح بالسجلات */
 function isLedger(u){return LEDGER_UNITS.indexOf(u)>=0}
+function hasRegs(u){return REG_UNITS.indexOf(u)>=0}
 /* الوحدة المعروضة: عضو الوحدة يرى وحدته، والإدارة والقسم الفني يختاران الوحدة */
 var IUNIT='';
-function lunit(){return isLedger(ME.unit)?ME.unit:(IUNIT||'mathkar')}
+function lunit(){return hasRegs(ME.unit)?ME.unit:(IUNIT||'mathkar')}
 /* من يعدّل: أنت وطيف وعلي طالب، وأعضاء الوحدة نفسها. القسم الفني اطلاع فقط */
-function canEditInv(){return ME.role==='admin'||(isLedger(ME.unit)&&ME.role!=='tech')}
+function canEditInv(){return ME.role==='admin'||(hasRegs(ME.unit)&&ME.role!=='tech')}
 /* سجل رقابي: المسؤول والرديف داخل الوحدة، والإدارة والقسم الفني */
-var CTRL_REG='سجل المؤثرات العقلية', CTRL_IDS=['P044','P016'];
-function canSeeReg(r){
+var CTRL_REG='سجل المؤثرات العقلية';
+/* من يفتح السجل الرقابي في كل وحدة — '*' تعني كل أعضاء الوحدة */
+var CTRL_ALLOW={mathkar:['P044','P016'], dakhiliya:'*'};
+function canSeeReg(r,unit){
  if(r!==CTRL_REG)return true;
  if(ME.role==='admin'||ME.role==='tech')return true;
- return CTRL_IDS.indexOf(ME.id)>=0;
+ var a=CTRL_ALLOW[unit||lunit()];
+ if(a===undefined||a==='*')return true;
+ return a.indexOf(ME.id)>=0;
 }
 
 /* الأساس = آخر جرد للصنف · الرصيد = الأساس + الوارد − الصادر بعد تاريخه */
@@ -987,7 +1027,7 @@ function addMove(o){
 function unitPickV(){
  var h='<div class="card"><h2>المخزون</h2><p class="muted">اختر الوحدة لعرض بياناتها.</p></div>';
  ORG.units.filter(function(u){return u.id!=='idara'&&u.id!=='fanni'}).forEach(function(u){
-  var rdy=isLedger(u.id);
+  var rdy=hasRegs(u.id);
   var n=0,lots=0;
   if(rdy){['drug','supply'].forEach(function(k){unitItems(u.id,k).forEach(function(i){
      var b=balanceOf(u.id,k,i.c);if(b){n++;lots+=lotsOf(u.id,k,i.c).length}})})}
@@ -995,7 +1035,7 @@ function unitPickV(){
   h+='<div class="item" onclick="IUNIT=\''+u.id+'\';REG=\'\';Q=\'\';render()" style="cursor:pointer">'+
     '<div class="rowb"><div style="flex:1"><div class="nm">'+esc(u.name)+'</div>'+
     '<div class="sb">'+(n?n+' مادة'+(rdy?' · '+lots+' وجبة':' مُدخلة'):'لا بيانات بعد')+'</div></div>'+
-    (rdy?'<span class="tag b">دفتر حركات</span>':'<span class="tag">جرد يومي</span>')+
+    (isLedger(u.id)?'<span class="tag b">دفتر حركات</span>':rdy?'<span class="tag b">سجلات وجرد</span>':'<span class="tag">جرد يومي</span>')+
     '<span class="tag">افتح ›</span></div></div>';
  });
  return h;
@@ -1020,20 +1060,21 @@ function unitDataV(u){
 
 /* ---------- شاشة السجل: الأصناف بأرصدتها ---------- */
 function ledgerV(){
- if(!isLedger(ME.unit)&&!IUNIT)return unitPickV();
+ if(!hasRegs(ME.unit)&&!IUNIT)return unitPickV();
  var U=lunit(), ro=!canEditInv();
- if(!isLedger(U))return unitDataV(U);
- var regs=regsPresent(U).filter(canSeeReg);
+ if(!hasRegs(U))return unitDataV(U);
+ var regs=regsPresent(U).filter(function(r){return canSeeReg(r,U)});
  var h='<div class="card"><div class="pillbar">'+
   '<button class="'+(KIND==='drug'?'act':'')+'" onclick="KIND=\'drug\';REG=\'\';render()">الأدوية</button>'+
   '<button class="'+(KIND==='supply'?'act':'')+'" onclick="KIND=\'supply\';REG=\'\';render()">المستلزمات</button>'+
   (ro?'':'<button class="gh" onclick="newItem()">+ صنف جديد</button>')+'</div>';
  if(!REG){
-  if(!isLedger(ME.unit))h+='<button class="gh" onclick="IUNIT=\'\';REG=\'\';render()">‹ كل الوحدات</button>';
+  if(!hasRegs(ME.unit))h+='<button class="gh" onclick="IUNIT=\'\';REG=\'\';render()">‹ كل الوحدات</button>';
   h+='<p class="muted">'+esc(unitName(U))+' — اختر السجل. الترتيب والأرقام مطابقة لفهرس السجل الورقي، والرصيد يُحسب من الوارد والصادر.'+
     (ro?' <b>اطلاع فقط.</b>':'')+'</p></div>';
+  if(!isLedger(U)&&!ro&&hasRegs(ME.unit))h+='<button class="sec" style="width:100%;margin-bottom:8px" onclick="TAB=\'quick\';render()">الإدخال السريع للجرد (الشاشة القديمة)</button>';
   regs.forEach(function(r){
-   var its=unitItems(U,KIND).filter(function(i){return regOf(i)===r});
+   var its=unitItems(U,KIND).filter(function(i){return inReg(i,r,U)});
    if(!its.length)return;
    var tot=0,bad=0;
    its.forEach(function(i){tot+=balanceOf(U,KIND,i.c);
@@ -1044,10 +1085,10 @@ function ledgerV(){
   });
   return h;
  }
- if(!canSeeReg(REG)){REG='';return ledgerV()}
- var arr=unitItems(U,KIND).filter(function(i){return regOf(i)===REG});
+ if(!canSeeReg(REG,U)){REG='';return ledgerV()}
+ var arr=unitItems(U,KIND).filter(function(i){return inReg(i,REG,U)});
  if(Q){var q=Q.toLowerCase();arr=arr.filter(function(i){return (i.n+' '+i.c).toLowerCase().indexOf(q)>=0})}
- var sk={idx:function(a,b){return (regNo(a.c)||999)-(regNo(b.c)||999)},
+ var sk={idx:function(a,b){return (regNo(a.c,REG,U)||999)-(regNo(b.c,REG,U)||999)},
    exp:function(a,b){return (nearestExpiry(U,KIND,a.c)||'9999').localeCompare(nearestExpiry(U,KIND,b.c)||'9999')},
    qty:function(a,b){return balanceOf(U,KIND,b.c)-balanceOf(U,KIND,a.c)},
    name:function(a,b){return String(a.n).localeCompare(String(b.n))}};
@@ -1060,7 +1101,7 @@ function ledgerV(){
   '</div></div>';
  h+=arr.map(function(i){
   var bal=balanceOf(U,KIND,i.c), ex=nearestExpiry(U,KIND,i.c), st=statusOf(ex);
-  var lots=lotsOf(U,KIND,i.c), rn=regNo(i.c), rp=regPage(i.c);
+  var lots=lotsOf(U,KIND,i.c), rn=regNo(i.c,REG,U), rp=regPage(i.c,REG,U);
   return '<div class="item '+(st==='منتهي'?'diff':'')+'" onclick="itemPage(\''+i.c+'\')" style="cursor:pointer">'+
    '<div class="rowb"><div style="flex:1">'+
    '<div class="nm">'+(rn?'<span class="tag b">'+rn+'</span> ':'')+esc(i.n)+(rp?' <span class="tag">صفحة '+rp+'</span>':'')+'</div>'+
@@ -1072,25 +1113,44 @@ function ledgerV(){
  return h;
 }
 
+/* سجل الجرد لوحدة تعمل بالعد اليومي */
+function countHistory(unit,kind,code){
+ var by={};
+ S.counts.filter(function(c){return c.unit===unit&&c.kind===kind&&c.code===code&&c.qty!==''&&c.qty!==undefined})
+  .forEach(function(c){var d=c.date;by[d]=by[d]||{qty:0,book:'',diff:'',user:c.user,ts:0};
+    by[d].qty+=(+c.qty||0);
+    if(c.book!==''&&c.book!==undefined&&by[d].book==='')by[d].book=c.book;
+    if(c.diff!==''&&c.diff!==undefined&&by[d].diff==='')by[d].diff=c.diff;
+    if(Number(c.ts||0)>by[d].ts){by[d].ts=Number(c.ts||0);by[d].user=c.user}});
+ var ds=Object.keys(by).sort().reverse();
+ if(!ds.length)return '<p class="muted">لم تُجرد هذه المادة بعد.</p>';
+ return '<table><tr><th>التاريخ</th><th>المجرود</th><th>رصيد السجل</th><th>الفرق</th><th>من سجّل</th></tr>'+
+  ds.map(function(d){var r=by[d],df=(r.diff===''||r.diff===undefined)?'':(+r.diff);
+   return '<tr'+(df?' style="background:#FFF1F2"':'')+'><td>'+d+'</td><td><b>'+r.qty.toLocaleString('en-US')+'</b></td>'+
+    '<td>'+(r.book===''?'—':(+r.book).toLocaleString('en-US'))+'</td>'+
+    '<td'+(df?' style="font-weight:800;color:#9C0006"':'')+'>'+(df?(df>0?'+'+df:df):'٠')+'</td>'+
+    '<td>'+esc(userName(r.user).split(' ')[0])+'</td></tr>'}).join('')+'</table>';
+}
 /* ---------- صفحة الصنف: الحركات ---------- */
 function itemPage(code){
  var U=lunit(), ro=!canEditInv();
  var it=items(KIND).find(function(i){return i.c===code});if(!it)return;
- if(!canSeeReg(regOf(it)))return toast('هذا السجل مقيّد');
+ if(!canSeeReg(REG||regOf(it,U),U))return toast('هذا السجل مقيّد');
  var bal=balanceOf(U,KIND,code), b=baseOf(U,KIND,code), mv=movesOf(U,KIND,code), lots=lotsOf(U,KIND,code);
- var rn=regNo(code), rp=regPage(code);
+ var RG=REG||regOf(it,U), rn=regNo(code,RG,U), rp=regPage(code,RG,U), also=alsoIn(it,RG,U);
  var h='<div class="rowb" style="justify-content:space-between"><h2 style="margin:0">'+esc(it.n)+'</h2>'+
   '<button class="gh" onclick="closeM()">إغلاق</button></div>'+
-  '<div class="muted">'+esc(regOf(it))+(rn?' · تسلسل '+rn:'')+(rp?' · صفحة '+rp:'')+' · '+esc(unitName(U))+'</div>'+
+  '<div class="muted">'+esc(RG)+(rn?' · تسلسل '+rn:'')+(rp?' · صفحة '+rp:'')+' · '+esc(unitName(U))+'</div>'+
+  (also.length?'<div class="sb">مسجّلة أيضاً في '+also.map(esc).join(' و')+' — الرصيد أدناه هو رصيد المادة كاملاً.</div>':'')+
   '<div class="card" style="background:#F4F7FC;margin-top:8px"><div class="rowb">'+
    '<div style="flex:1"><div class="nm" style="font-size:19px">الرصيد: '+bal.toLocaleString('en-US')+'</div>'+
    '<div class="sb">آخر جرد '+(b.date==='0000-00-00'?'—':b.date)+' بكمية '+b.qty.toLocaleString('en-US')+'</div></div>'+
    '<span class="tag '+(statusOf(nearestExpiry(U,KIND,code))==='منتهي'?'r':'a')+'">'+(nearestExpiry(U,KIND,code)||'بلا نفاد')+'</span>'+
   '</div></div>'+
   (ro?'<div class="warn">اطلاع فقط — التعديل من صلاحية الوحدة والإدارة.</div>':
-   '<div class="rowb"><button class="ok" style="flex:1" onclick="moveBox(\''+code+'\',\'in\')">+ تسجيل وارد</button>'+
-   '<button class="warn" style="flex:1;background:#8A6100;color:#fff" onclick="moveBox(\''+code+'\',\'out\')">− تسجيل صادر</button></div>'+
-   '<button class="gh" style="width:100%;margin-top:6px" onclick="auditBox(\''+code+'\')">✓ تدقيق الجرد (العد الفعلي)</button>')+
+   (isLedger(U)?'<div class="rowb"><button class="ok" style="flex:1" onclick="moveBox(\''+code+'\',\'in\')">+ تسجيل وارد</button>'+
+     '<button class="warn" style="flex:1;background:#8A6100;color:#fff" onclick="moveBox(\''+code+'\',\'out\')">− تسجيل صادر</button></div>':'')+
+   '<button class="'+(isLedger(U)?'gh':'ok')+'" style="width:100%;margin-top:6px" onclick="auditBox(\''+code+'\')">'+(isLedger(U)?'✓ تدقيق الجرد (العد الفعلي)':'✓ تسجيل جرد اليوم')+'</button>')+
   '<div class="sep"></div><h2>الوجبات داخل الرصيد</h2>'+
   (lots.length?lots.map(function(l){var st=statusOf(l.expiry);
      return '<div class="item '+(st==='منتهي'?'diff':'')+'"><div class="rowb"><div style="flex:1">'+
@@ -1102,8 +1162,8 @@ function itemPage(code){
       (l.hist?'<div class="sb" style="margin-top:4px;color:#8A6100">'+esc(l.hist)+'</div>':'')+'</div>'}).join('')
    :'<p class="muted">لا وجبات مسجّلة.</p>')+
   '<p class="muted">عند الصرف تُصرف الوجبة الأقرب نفاداً أولاً (FEFO).</p>'+
-  '<div class="sep"></div><h2>الحركات</h2>'+
-  (mv.length?'<table><tr><th>التاريخ</th><th>من / إلى</th><th>الكتاب</th><th>وارد</th><th>صادر</th><th>الباقي</th>'+(ro?'':'<th></th>')+'</tr>'+
+  '<div class="sep"></div><h2>'+(isLedger(U)?'الحركات':'سجل الجرد')+'</h2>'+
+  (!isLedger(U)?countHistory(U,KIND,code):mv.length?'<table><tr><th>التاريخ</th><th>من / إلى</th><th>الكتاب</th><th>وارد</th><th>صادر</th><th>الباقي</th>'+(ro?'':'<th></th>')+'</tr>'+
     (function(){var run=b.qty,rows=mv.slice().reverse().map(function(m){
        run+=(m.dir==='in'?1:-1)*(+m.qty||0);
        var dd=[m.doc,m.docout?'إخراج '+m.docout:'',m.docin?'إدخال '+m.docin:''].filter(Boolean).join(' · ');
@@ -1224,7 +1284,7 @@ function moveBox(code,dir){
  var it=items(KIND).find(function(i){return i.c===code});
  var lots=lotsOf(U,KIND,code), sug=lots.filter(function(l){return l.expiry})[0];
  var parties=dir==='in'?PARTIES_IN:PARTIES_OUT;
- var ctrl=(regOf(it)===CTRL_REG);
+ var ctrl=regsOfItem(it,U).some(function(p){return p.reg===CTRL_REG});
  openM('<h2>'+(dir==='in'?'تسجيل وارد':'تسجيل صادر')+' — '+esc(it.n)+'</h2>'+
   '<div class="muted">الرصيد الحالي: '+balanceOf(U,KIND,code).toLocaleString('en-US')+'</div>'+
   (dir==='out'&&sug?'<div class="warn" style="margin-top:8px">الأقرب نفاداً: '+(sug.company||'بلا شركة')+' — '+sug.expiry+' (كمية '+sug.qty+')</div>':'')+
@@ -1253,7 +1313,7 @@ function saveMove(code,dir){
  if(!q||q<=0)return toast('اكتب كمية صحيحة');
  if(dir==='out'&&q>balanceOf(U,KIND,code))return toast('الكمية أكبر من الرصيد');
  var g=function(id){var e=document.getElementById(id);return e?e.value:''};
- if(regOf(it)===CTRL_REG&&(!g('md')||!g('mr')))return toast('السجل الرقابي يتطلب رقم الكتاب واسم المستلم');
+ if(regsOfItem(it,lunit()).some(function(p){return p.reg===CTRL_REG})&&(!g('md')||!g('mr')))return toast('السجل الرقابي يتطلب رقم الكتاب واسم المستلم');
  var party=g('mp');
  if(dir==='in'&&needsDocs(party)&&(!g('mo')||!g('mi')))
    return toast('الحصص والمناقلات تتطلب رقم مستند الإخراج ورقم مستند الإدخال');
@@ -1319,7 +1379,7 @@ function unitV(u){
  h+='<div class="card"><h2>جرد الوحدة حسب السجلات</h2>';
  var anyReg=false;
  regsPresent(u).forEach(function(rg){
-  var its=[];['drug','supply'].forEach(function(k){unitItems(u,k).forEach(function(i){if(regOf(i)===rg)its.push({i:i,k:k})})});
+  var its=[];['drug','supply'].forEach(function(k){unitItems(u,k).forEach(function(i){if(inReg(i,rg,u))its.push({i:i,k:k})})});
   var rows=its.map(function(x){
     var lots=S.counts.filter(function(c){return c.unit===u&&c.kind===x.k&&c.code===x.i.c&&c.qty!==''&&c.qty!==undefined});
     if(!lots.length)return null;
@@ -1539,6 +1599,7 @@ function restore(inp){var f=inp.files[0];if(!f)return;var r=new FileReader();
   if(j.staff&&j.staff.length)S.staff=j.staff;save();render();toast('تم الدمج ✓')}catch(e){toast('ملف غير صالح')}};r.readAsText(f)}
 
 if(SERVED_URL&&SERVED_URL.indexOf('http')===0&&!S.syncUrl){S.syncUrl=SERVED_URL;save()}
+(S.addedItems||[]).forEach(registerAdded);   /* أعد بناء فهرس الأصناف المضافة عند الإقلاع */
 if(S.session&&S.session.id&&(S.pw||{})[S.session.u]){
  var cand=ORG.users.find(function(x){return x.id===S.session.id})||null;
  if(cand&&cand.role==='tech'&&S.session.day!==today()){S.session=null;save();cand=null;}
