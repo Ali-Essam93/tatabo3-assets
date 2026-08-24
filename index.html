@@ -101,7 +101,8 @@ var TASKS=[
 ];
 var DUTY={ 'P055':['jard'], 'P017':['order'] }; /* مصطفى فضل = الجرد · ريام علاء = الطلبية */
 var DEF={v:4,ids:{},moves:[],session:null,pw:{},shorts:[],notes:[],utasks:[],dutyTs:0,dutySynced:true,syncUrl:'',device:'',counts:[],orders:[],dones:[],addedItems:[],staff:STAFF,duty:DUTY,lastPull:0};
-var S=load(), ME=null, LOGINERR='', REG='', SORTBY='idx', TAB='', KIND='drug', VIEW='mine', Q='', LINES=[], OTYPE='clin', SUNIT='', CUR=null;
+var S=load(); if(!S.dutySwap)S.dutySwap={};
+var ME=null, LOGINERR='', REG='', SORTBY='idx', TAB='', KIND='drug', VIEW='mine', Q='', LINES=[], OTYPE='clin', SUNIT='', CUR=null;
 
 function load(){
  try{var r=JSON.parse(localStorage.getItem(KEY));if(r&&r.v===4)return Object.assign({},DEF,r)}catch(e){}
@@ -268,7 +269,9 @@ async function sync(silent){
      ut2=S.utasks.filter(function(x){return !x.synced}),
      mv=(S.moves||[]).filter(function(x){return !x.synced}),
      st=(ME&&ME.role==='admin')?S.staff.filter(function(x){return x.synced===false}):[];
- var dutyPush=(ME&&ME.role==='admin'&&S.dutySynced===false)?[{k:'duty',v:JSON.stringify(S.duty),ts:S.dutyTs||Date.now()}]:[];
+ var dutyPush=[];
+ if(ME&&ME.role==='admin'&&S.dutySynced===false)dutyPush.push({k:'duty',v:JSON.stringify(S.duty),ts:S.dutyTs||Date.now()});
+ if(ME&&ME.role==='admin'&&S.dutySwapSynced===false)dutyPush.push({k:'dutyswap',v:JSON.stringify(S.dutySwap||{}),ts:S.dutySwapTs||Date.now()});
  var pushed=(c.length||o.length||d.length||it.length||sr.length||nt.length||ut2.length||st.length||dutyPush.length||mv.length);
  try{
   if(pushed){
@@ -290,7 +293,8 @@ async function sync(silent){
    });
    mergeStaff(j2.staff);
    (j2.settings||[]).forEach(function(x){
-     if(x.k==='duty'&&Number(x.ts)>(S.dutyTs||0)){try{S.duty=JSON.parse(x.v);S.dutyTs=Number(x.ts);S.dutySynced=true}catch(e){}}});
+     if(x.k==='duty'&&Number(x.ts)>(S.dutyTs||0)){try{S.duty=JSON.parse(x.v);S.dutyTs=Number(x.ts);S.dutySynced=true}catch(e){}}
+     if(x.k==='dutyswap'&&Number(x.ts)>(S.dutySwapTs||0)){try{S.dutySwap=JSON.parse(x.v);S.dutySwapTs=Number(x.ts);S.dutySwapSynced=true}catch(e){}}});
    merge(S.moves,j2.moves);
    if(pushed)confirmPushed(j2,[c,o,d,it,sr,nt,ut2,st,mv],dutyPush);
    S.lastPull=j2.now||Date.now();
@@ -303,7 +307,9 @@ function confirmPushed(j2,groups,dutyPush){
  ['counts','orders','dones','items','shorts','notes','utasks','staff','moves'].forEach(function(k){
   (j2[k]||[]).forEach(function(r){if(r&&r.id)seen[r.id]=1;if(r&&r.c)seen[r.c]=1})});
  groups.forEach(function(a){a.forEach(function(x){if(seen[x.id]||seen[x.c])x.synced=true})});
- if(dutyPush.length&&(j2.settings||[]).some(function(x){return x.k==='duty'&&Number(x.ts)>=Number(dutyPush[0].ts)}))S.dutySynced=true;
+ dutyPush.forEach(function(p){
+  if((j2.settings||[]).some(function(x){return x.k===p.k&&Number(x.ts)>=Number(p.ts)})){
+   if(p.k==='duty')S.dutySynced=true; else S.dutySwapSynced=true;}});
 }
 function flat(o){var x=Object.assign({},o);x.lines=JSON.stringify(o.lines||[]);return x}
 function flatStaff(p){var x=Object.assign({},p);x.extra=JSON.stringify(p.extra||[]);return x}
@@ -405,9 +411,10 @@ function render(){
      .concat([['unit','وحدتي','◧'],['me','ملفي','☺']]);
  var allowed=tabs.map(function(x){return x[0]});
  if(allowed.indexOf('jard')>=0)allowed.push('quick');   /* شاشة الإدخال السريع تابعة للجرد */
+ if(canSeeDuty())allowed.push('duty');                  /* الخفارة تُفتح من اللوحة لا من الشريط */
  if(!TAB||allowed.indexOf(TAB)<0)TAB=allowed[0];   /* لا يفتح أحد شاشة ليست له */
  nav.innerHTML=tabs.map(function(t){return '<button class="'+(TAB===t[0]?'act':'')+'" onclick="go(\''+t[0]+'\')"><i>'+t[2]+'</i>'+t[1]+'</button>'}).join('');
- app.innerHTML = TAB==='quick'?quickV():TAB==='inv'?ledgerV():TAB==='orders_in'?ordersInV():TAB==='me'?meV():TAB==='jard'&&hasRegs(ME.unit)?ledgerV():TAB==='tdash'?tdashV():TAB==='send'?sendV():TAB==='dir'?dirV():TAB==='view'?viewV()
+ app.innerHTML = TAB==='duty'?dutyV():TAB==='quick'?quickV():TAB==='inv'?ledgerV():TAB==='orders_in'?ordersInV():TAB==='me'?meV():TAB==='jard'&&hasRegs(ME.unit)?ledgerV():TAB==='tdash'?tdashV():TAB==='send'?sendV():TAB==='dir'?dirV():TAB==='view'?viewV()
   :TAB==='today'?todayV():TAB==='jard'?jardV():TAB==='order'?orderV():TAB==='short'?shortV():TAB==='unit'?unitV(ME.unit)
   :TAB==='dash'?dashV():TAB==='units'?unitsV():TAB==='staff'?staffV():dataV();
 }
@@ -793,7 +800,7 @@ function toMe(){return S.utasks.filter(function(t){return t.to===ME.id}).sort(fu
 function tdashV(){
  var mine=myUtasks(), inbox=toMe();
  var open=mine.filter(function(t){return t.status!=='منجز'}).length;
- var h='<div class="card"><h2>لوحتي — '+esc(ME.rank)+'</h2>'+
+ var h=dutyStrip()+'<div class="card"><h2>لوحتي — '+esc(ME.rank)+'</h2>'+
   '<p class="muted">'+new Date().toLocaleDateString('ar-IQ',{weekday:'long',day:'numeric',month:'long'})+' · تُحدَّث البيانات عند كل دخول</p>'+
   '<div class="kpis"><div class="kpi"><div class="n">'+mine.length+'</div><small>مهام أرسلتها</small></div>'+
   '<div class="kpi"><div class="n" style="color:#8A6100">'+open+'</div><small>قيد الانتظار</small></div>'+
@@ -1414,8 +1421,95 @@ function unitV(u){
    '<span class="tag '+(mine||ord?'g':'')+'">'+mine+' صنف · '+ord+' طلبية</span></div></div>'}).join('')+'</div>';
  return h;
 }
+/* ================= جدول الخفارة ================= */
+/* دورة أربعة أيام لا تنقطع عند نهاية الشهر. المرساة: 1 آب 2026.
+   تُنتج هذه القاعدة جداول نيسان وتموز وآب كما وردت في الكتاب حرفياً، وتُولّد كل شهر قادم تلقائياً. */
+var DUTY_ANCHOR=Date.UTC(2026,7,1);
+var DUTY_ROT={kh:['P046','P037','P022','P049'], cl:['P059','P034','P057','P020']};
+var DUTY_NOTE='دوام الصيدلية الخافرة من الساعة ٢ ظهراً لغاية ٨ صباح اليوم التالي، عدا الجمعة والسبت والعطل الرسمية فيكون ٢٤ ساعة.';
+var AR_MONTHS=['كانون الثاني','شباط','آذار','نيسان','أيار','حزيران','تموز','آب','أيلول','تشرين الأول','تشرين الثاني','كانون الأول'];
+var DMON=null, DYR=null;
+function dutySlot(y,m,d){var n=Math.round((Date.UTC(y,m,d)-DUTY_ANCHOR)/864e5);return ((n%4)+4)%4}
+function onDuty(y,m,d){var i=dutySlot(y,m,d);
+ var k=(SW('kh',y,m,d)||DUTY_ROT.kh[i]), c=(SW('cl',y,m,d)||DUTY_ROT.cl[i]);
+ return {kh:k, cl:c, slot:i};}
+function SW(kind,y,m,d){var s=(S.dutySwap||{})[ymd(y,m,d)];return s?s[kind]:null}
+function ymd(y,m,d){return y+'-'+pad2(m+1)+'-'+pad2(d)}
+function pad2(n){return (n<10?'0':'')+n}
+function daysIn(y,m){return new Date(y,m+1,0).getDate()}
+function dutyDays(y,m,slot){var out=[];for(var d=1;d<=daysIn(y,m);d++){if(dutySlot(y,m,d)===slot)out.push(d)}return out}
+function canSeeDuty(){return ME.role==='admin'||ME.role==='tech'}
+
+function dutyV(){
+ var now=new Date();
+ if(DYR===null){DYR=now.getFullYear();DMON=now.getMonth()}
+ var td=onDuty(now.getFullYear(),now.getMonth(),now.getDate());
+ var h='<div class="card"><button class="gh" onclick="go(\''+(ME.role==='tech'?'tdash':'dash')+'\')">‹ رجوع</button>'+
+  '<h2 style="margin-top:8px">الخفارة اليوم</h2>'+
+  '<p class="muted">'+now.toLocaleDateString('ar-IQ',{weekday:'long',day:'numeric',month:'long',year:'numeric'})+'</p>'+
+  '<div class="item" style="background:#F4F7FC"><div class="nm" style="font-size:15px">الصيدلية الخافرة</div>'+
+   '<div class="sb" style="color:var(--txt);font-size:14px">'+esc(userName(td.kh))+'</div></div>'+
+  '<div class="item" style="background:#F4F7FC"><div class="nm" style="font-size:15px">الصيدلي السريري الخفر</div>'+
+   '<div class="sb" style="color:var(--txt);font-size:14px">'+esc(userName(td.cl))+'</div></div>'+
+  '<p class="muted" style="margin-top:8px">'+DUTY_NOTE+'</p></div>';
+
+ h+='<div class="card"><div class="rowb">'+
+   '<button class="gh" onclick="dutyMove(-1)">‹ الشهر السابق</button>'+
+   '<b style="flex:1;text-align:center">'+AR_MONTHS[DMON]+' '+DYR+'</b>'+
+   '<button class="gh" onclick="dutyMove(1)">الشهر التالي ›</button></div></div>';
+
+ h+=dutyTable('الصيدلية الخافرة','kh')+dutyTable('الصيادلة السريريون الخفراء','cl');
+ h+='<div class="card"><p class="muted">الجدول يُولَّد تلقائياً بدورة أربعة أيام لا تنقطع بين الشهور — لا يحتاج إدخالاً شهرياً. عند حصول تبديل بين اثنين سجّله من زر «تبديل» ليظهر للجميع.</p></div>';
+ return h;
+}
+function dutyMove(n){DMON+=n;if(DMON>11){DMON=0;DYR++}if(DMON<0){DMON=11;DYR--}render()}
+function dutyTable(title,kind){
+ var now=new Date(), isNow=(DYR===now.getFullYear()&&DMON===now.getMonth());
+ var h='<div class="card"><h2>'+title+' — '+AR_MONTHS[DMON]+' '+DYR+'</h2>'+
+  '<table><tr><th>ت</th><th>الاسم</th><th>أيام الخفارة</th></tr>';
+ for(var row=0;row<4;row++){
+  var s=dutySlot(DYR,DMON,row+1);          /* الترتيب كما في الكتاب: صف لكل من أيام ١ و٢ و٣ و٤ */
+  var days=dutyDays(DYR,DMON,s);
+  var names={};days.forEach(function(d){var p=onDuty(DYR,DMON,d)[kind];names[p]=(names[p]||[]).concat(d)});
+  var ids=Object.keys(names);
+  ids.forEach(function(pid,k){
+   var mine=names[pid], hot=isNow&&mine.indexOf(now.getDate())>=0;
+   h+='<tr'+(hot?' style="background:#C6EFCE;font-weight:700"':'')+'><td>'+(k?'':(row+1))+'</td>'+
+     '<td style="text-align:right">'+esc(userName(pid))+'</td>'+
+     '<td style="text-align:right;letter-spacing:.5px">'+mine.join(' - ')+'</td></tr>';
+  });
+ }
+ h+='</table>';
+ if(ME.role==='admin')h+='<button class="gh" style="width:100%;margin-top:7px" onclick="swapBox(\''+kind+'\')">تبديل يوم بين اثنين</button>';
+ return h+'</div>';
+}
+function swapBox(kind){
+ var pool=(kind==='kh'?DUTY_ROT.kh:DUTY_ROT.cl);
+ openM('<h2>تبديل خفارة</h2><p class="muted">يُثبَّت التبديل ليوم واحد ويظهر لكل من يرى الجدول.</p>'+
+  '<label>التاريخ</label><input type="date" id="swd" value="'+ymd(DYR,DMON,1)+'">'+
+  '<label>الخفر الجديد</label><select id="swp">'+pool.map(function(p){return '<option value="'+p+'">'+esc(userName(p))+'</option>'}).join('')+'</select>'+
+  '<div class="rowb" style="margin-top:11px"><button class="ok" style="flex:1" onclick="saveSwap(\''+kind+'\')">حفظ التبديل</button>'+
+  '<button class="gh" onclick="closeM()">إلغاء</button></div>');
+}
+function saveSwap(kind){
+ var d=(document.getElementById('swd')||{}).value, p=(document.getElementById('swp')||{}).value;
+ if(!d||!p)return toast('اختر التاريخ والاسم');
+ S.dutySwap=S.dutySwap||{};S.dutySwap[d]=S.dutySwap[d]||{};S.dutySwap[d][kind]=p;
+ S.dutySwapTs=Date.now();S.dutySwapSynced=false;
+ save();sync(true);closeM();render();toast('سُجّل التبديل ✓');
+}
+/* بطاقة مختصرة لأعلى اللوحة */
+function dutyStrip(){
+ var n=new Date(), t=onDuty(n.getFullYear(),n.getMonth(),n.getDate());
+ return '<div class="card"><div class="rowb"><div style="flex:1">'+
+  '<div class="nm">خفارة اليوم</div>'+
+  '<div class="sb">الخافرة: '+esc(userName(t.kh))+' · السريري: '+esc(userName(t.cl))+'</div></div>'+
+  '<button class="gh" onclick="go(\'duty\')">الجدول ›</button></div></div>';
+}
+
 function dashV(){
  var d=today(),dow=new Date().getDay();
+ var DSTRIP=dutyStrip();
  var totC=S.counts.filter(function(c){return c.date===d&&c.qty!==''&&c.qty!==undefined});
  var diffs=totC.filter(function(c){return c.diff!==''&&c.diff!==0});
  var ords=S.orders.filter(function(o){return o.date===d});
@@ -1423,7 +1517,7 @@ function dashV(){
  var exp=0,near=0,seen={};
  S.counts.forEach(function(c){var k=c.unit+c.kind+c.code;if(!seen[k]||seen[k].ts<c.ts)seen[k]=c});
  Object.keys(seen).forEach(function(k){var s=statusOf(seen[k].expiry);if(s==='منتهي')exp++;else if(s==='قريب النفاد')near++});
- var h='<div class="card"><h2>لوحة الإدارة — '+new Date().toLocaleDateString('ar-IQ',{weekday:'long',day:'numeric',month:'long'})+'</h2><div class="kpis">'+
+ var h=DSTRIP+'<div class="card"><h2>لوحة الإدارة — '+new Date().toLocaleDateString('ar-IQ',{weekday:'long',day:'numeric',month:'long'})+'</h2><div class="kpis">'+
   '<div class="kpi"><div class="n">'+totC.length+'</div><small>صنف مُدخل اليوم</small></div>'+
   '<div class="kpi"><div class="n" style="color:#9C0006">'+diffs.length+'</div><small>فروقات مع السجل</small></div>'+
   '<div class="kpi"><div class="n">'+ords.length+'</div><small>طلبيات اليوم</small></div>'+
