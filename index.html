@@ -308,7 +308,7 @@ async function sync(silent){
   if(j2&&j2.ok){
    merge(S.counts,j2.counts);merge(S.dones,j2.dones);merge(S.addedItems,j2.items);
    S.addedItems.forEach(registerAdded);   /* أصناف الآخرين تدخل الفهرس عندنا أيضاً */
-   merge(S.shorts,j2.shorts);merge(S.notes,j2.notes);merge(S.utasks,j2.utasks);
+   merge(S.shorts,j2.shorts);if(j2.shorts&&j2.shorts.length)fixShorts();merge(S.notes,j2.notes);merge(S.utasks,j2.utasks);
    (j2.orders||[]).forEach(function(x){
      if(!x||!x.id)return;
      if(typeof x.lines==='string'){try{x.lines=JSON.parse(x.lines||'[]')}catch(e){x.lines=[]}}
@@ -744,11 +744,39 @@ function seedShortAug(){
  if(n)save();
  return n;
 }
-function shortMonths(){var m={};S.shorts.forEach(function(r){m[r.month]=1});m[curMonth()]=1;m[nextMonth()]=1;
+function shortMonths(){var m={};S.shorts.forEach(function(r){m[mkey(r.month)]=1});m[curMonth()]=1;m[nextMonth()]=1;
  return Object.keys(m).sort().reverse()}
-function shortRows(mo){return S.shorts.filter(function(r){return r.month===mo}).sort(function(a,b){return a.ts-b.ts})}
+function shortRows(mo){return S.shorts.filter(function(r){return mkey(r.month)===mo}).sort(function(a,b){return (a.ts||0)-(b.ts||0)})}
 function shortLocked(mo){return mo<curMonth()}   /* الشهر الحالي والقادم مفتوحان، والسابق للاطلاع */
 function shortSubmitted(mo){return S.dones.find(function(d){return d.taskId==='shortage'&&d.date&&d.date.slice(0,7)===mo})}
+/* الشهر قد يعود من Google Sheets كتاريخ حقيقي (٢٠٢٦-٠٧-٣١T٢١:٠٠Z بتوقيت بغداد).
+   mkey يعيده دائماً إلى YYYY-MM مهما كان شكله، ويضيف ١٢ ساعة ليعبر فرق التوقيت. */
+function mkey(v){
+ if(v==null)return '';
+ if(typeof v==='string'&&/^\d{4}-\d{2}$/.test(v))return v;
+ var d=(v instanceof Date)?v:new Date(v);
+ if(isNaN(d)){
+  var m=String(v).match(/(\d{4})-(\d{1,2})/);
+  return m?(m[1]+'-'+String(+m[2]).padStart(2,'0')):String(v);
+ }
+ d=new Date(d.getTime()+432e5);                 /* ١٢ ساعة */
+ return d.getUTCFullYear()+'-'+String(d.getUTCMonth()+1).padStart(2,'0');
+}
+/* يوحّد كل السجلات المخزونة ويزيل ما تكرر في نفس الشهر لنفس المادة */
+function fixShorts(){
+ var changed=0;
+ S.shorts.forEach(function(r){var k=mkey(r.month);if(k!==r.month){r.month=k;changed++}});
+ var seen={},dropped=0,keep=[];
+ S.shorts.slice().sort(function(a,b){return (a.ts||0)-(b.ts||0)}).forEach(function(r){
+  var k=r.month+'|'+(r.ncode||r.name||r.id);
+  if(seen[k]){dropped++;return}
+  seen[k]=1;keep.push(r);
+ });
+ if(dropped)S.shorts=keep;
+ if(changed||dropped)save();
+ return {fixed:changed,dropped:dropped};
+}
+
 function shortV(){
  if(!SMONTH)SMONTH=curMonth();
  var rows=shortRows(SMONTH), locked=shortLocked(SMONTH)||ME.role==='tech';   /* القسم الفني اطلاع فقط */
@@ -764,6 +792,7 @@ function shortV(){
   (locked?'<div class="warn" style="margin-top:9px">تقرير شهر سابق — للاطلاع فقط.</div>':
    '<div class="rowb" style="margin-top:9px"><input id="sq" placeholder="ابحث عن الصنف لإضافته…" oninput="ssearch(this.value)" style="flex:1"></div><div id="sres"></div>'+
    '<div class="rowb" style="margin-top:8px"><button class="gh" onclick="copyLast()">نسخ أصناف الشهر الماضي</button>'+
+   (ME.role==='admin'?'<button class="gh" onclick="cleanShorts()">إزالة التكرار</button>':'')+
    '<button class="gh" onclick="addFree()">+ صنف غير موجود</button></div>'+
    '<div class="rowb" style="margin-top:8px">'+
    '<button class="ok" style="flex:1" onclick="submitShort()">'+(shortSubmitted(SMONTH)?'إعادة إرسال التقرير':'إرسال تقرير الشهر')+'</button></div>')+
@@ -808,39 +837,86 @@ function sSave(id){var r=S.shorts.find(function(x){return x.id===id});if(!r)retu
  r.synced=false;save();sync(true);sMark(id,'saved');toast('حُفظ الصنف ✓');}
 function delShort(id){S.shorts=S.shorts.filter(function(x){return x.id!==id});save();render()}
 function ssearch(q){
- var el=document.getElementById('sres');if(!q||q.length<2){el.innerHTML='';return}
- var t=q.toLowerCase();
- var arr=NATL.filter(function(i){return (i.n+' '+i.c).toLowerCase().indexOf(t)>=0}).slice(0,12);
- el.innerHTML=arr.map(function(i){return '<div class="item" onclick="addNatl(\''+i.c+'\')">'+
+ var el=document.getElementById('sres');if(!el)return;
+ q=String(q||'').trim();
+ if(q.length<2){el.innerHTML='';return}
+ var t=norm8(q);
+ var hit=NATL.filter(function(i){return norm8(i.n+' '+i.c+' '+(i.u||'')).indexOf(t)>=0});
+ /* أسماء الأدوية عندنا بالعربية أحياناً — ابحث في قائمة الشعبة أيضاً وقابلها بالرمز الوطني */
+ var extra=items('drug').concat(items('supply')).filter(function(i){
+   return norm8(i.n+' '+(i.s||'')).indexOf(t)>=0;
+ }).slice(0,8);
+ var seen={};hit.forEach(function(i){seen[i.c]=1});
+ var html=hit.slice(0,15).map(function(i){
+   return '<div class="item" onclick="addNatl(\''+i.c+'\')">'+
    '<div class="nm">'+esc(i.n)+'</div><div class="sb"><span class="tag b">'+esc(i.c)+'</span> '+
-   esc(i.u||'')+(i.l?' · مستوى '+esc(i.l):'')+' · اضغط للإضافة</div></div>'}).join('')||
-   '<div class="card muted">لا نتائج — استخدم «صنف غير موجود في القائمة».</div>';
+   esc(i.u||'')+(i.l?' · مستوى '+esc(i.l):'')+' · اضغط للإضافة</div></div>'}).join('');
+ html+=extra.map(function(i){
+   return '<div class="item" onclick="addCat(\''+i.c+'\')"><div class="nm">'+esc(i.n)+'</div>'+
+   '<div class="sb">'+esc(i.s||'')+' · من قائمة الشعبة · اضغط للإضافة</div></div>'}).join('');
+ el.innerHTML=html||'<div class="card muted">لا نتائج — جرّب جزءاً من الاسم بالإنكليزية أو الرمز الوطني، أو «صنف غير موجود».</div>';
+}
+/* تطبيع للبحث: حروف صغيرة · بلا تشكيل · بلا فراغات زائدة · توحيد الألف والياء والهاء */
+function norm8(s){
+ return String(s||'').toLowerCase()
+  .replace(/[\u064B-\u0652\u0640]/g,'')
+  .replace(/[إأآا]/g,'ا').replace(/[يى]/g,'ي').replace(/ة/g,'ه')
+  .replace(/\s+/g,' ').trim();
+}
+function addCat(code){
+ var i=items('drug').concat(items('supply')).find(function(x){return x.c===code});if(!i)return;
+ addRow({ncode:'',code:i.c,name:i.n,spec:i.s||'',uom:'',level:''});
 }
 function addNatl(ncode){
  var i=NATL.find(function(x){return x.c===ncode});if(!i)return;
- if(shortRows(SMONTH).some(function(r){return r.ncode===ncode}))return toast('مضاف مسبقاً');
- S.shorts.push({id:uid(),ts:Date.now(),month:SMONTH,unit:'mathkar',user:ME.id,code:'',name:i.n,spec:'',
-  ncode:i.c,uom:i.u||'',level:i.l||'',status:'',purchase:'',surplusQty:'',surplusExp:'',
-  nearQty:'',nearExp:'',note:'',synced:false});
+ addRow({ncode:i.c,code:'',name:i.n,spec:'',uom:i.u||'',level:i.l||''});
+}
+/* إضافة صنف إلى شهر مفتوح — يحمل كل بيانات القائمة، ويستعير أرقام الشهر الماضي إن وُجدت */
+function addRow(o){
+ if(shortLocked(SMONTH))return toast('هذا الشهر للاطلاع فقط');
+ var k=skey(o);
+ if(shortRows(SMONTH).some(function(r){return skey(r)===k}))return toast('مضاف مسبقاً في هذا الشهر');
+ var ms=shortMonths().filter(function(m){return m<SMONTH}).sort();
+ var prev=ms.length?shortRows(ms[ms.length-1]).find(function(r){return skey(r)===k}):null;
+ S.shorts.push({id:uid(),ts:Date.now(),month:SMONTH,unit:'mathkar',user:ME.id,
+  code:o.code||(prev?prev.code:'')||'',name:o.name,spec:o.spec||(prev?prev.spec:'')||'',
+  ncode:o.ncode||(prev?prev.ncode:'')||'',
+  uom:o.uom||(prev?prev.uom:'')||'',level:o.level||(prev?prev.level:'')||'',
+  status:prev?(prev.status||''):'',purchase:'',
+  surplusQty:prev?(prev.surplusQty||''):'',surplusExp:prev?(prev.surplusExp||''):'',
+  nearQty:prev?(prev.nearQty||''):'',nearExp:prev?(prev.nearExp||''):'',
+  note:'',synced:false});
  var s=document.getElementById('sq');if(s)s.value='';
- save();sync(true);render();toast('أُضيف ✓');
+ save();sync(true);render();
+ toast(prev?'أُضيف مع أرقام الشهر الماضي ✓':'أُضيف ✓');
 }
 /* نسخ أصناف الشهر الماضي بأرقامها ليُعدّلوا عليها */
 function copyLast(){
+ if(shortLocked(SMONTH))return toast('هذا الشهر للاطلاع فقط');
  var ms=shortMonths().filter(function(m){return m<SMONTH}).sort();
  var prev=ms[ms.length-1];
  if(!prev)return toast('لا يوجد شهر سابق');
- var have={};shortRows(SMONTH).forEach(function(r){have[r.ncode||r.name]=1});
- var n=0;
- shortRows(prev).forEach(function(r){
-  if(have[r.ncode||r.name])return;
-  S.shorts.push({id:uid(),ts:Date.now(),month:SMONTH,unit:'mathkar',user:ME.id,code:r.code||'',
+ var src=shortRows(prev);
+ if(!src.length)return toast('لا أصناف في '+monthLabel(prev));
+ var have={};shortRows(SMONTH).forEach(function(r){have[skey(r)]=1});
+ var add=[],n=0;
+ src.forEach(function(r){
+  var k=skey(r);
+  if(have[k])return;
+  have[k]=1;                                   /* يمنع التكرار داخل النسخة نفسها */
+  add.push({id:uid(),ts:Date.now()+(n++),month:SMONTH,unit:'mathkar',user:ME.id,code:r.code||'',
    name:r.name,spec:r.spec||'',ncode:r.ncode||'',uom:r.uom||'',level:r.level||'',
    status:r.status||'',purchase:'',surplusQty:r.surplusQty||'',surplusExp:r.surplusExp||'',
-   nearQty:r.nearQty||'',nearExp:r.nearExp||'',note:'',synced:false});n++;});
+   nearQty:r.nearQty||'',nearExp:r.nearExp||'',note:'',synced:false});
+ });
+ if(!add.length)return toast('كل أصناف '+monthLabel(prev)+' موجودة أصلاً');
+ if(!confirm('نقل '+add.length+' صنف من '+monthLabel(prev)+' إلى '+monthLabel(SMONTH)+'؟'))return;
+ add.forEach(function(x){S.shorts.push(x)});
  save();sync(true);render();
- toast(n?('نُقل '+n+' صنف من '+monthLabel(prev)):'كل الأصناف منقولة مسبقاً');
+ toast('نُقل '+add.length+' صنف من '+monthLabel(prev));
 }
+/* مفتاح الصنف داخل الشهر — الرمز الوطني أولاً ثم الاسم */
+function skey(r){return String(r.ncode||'').trim()||String(r.name||'').trim().toLowerCase()}
 function addShort(code){
  var i=items('drug').concat(items('supply')).find(function(x){return x.c===code});if(!i)return;
  if(shortRows(SMONTH).some(function(r){return r.code===code}))return toast('مضاف مسبقاً');
@@ -849,10 +925,15 @@ function addShort(code){
  save();sync(true);document.getElementById('sq').value='';render();
 }
 function addFree(){
- var n=prompt('اسم الصنف غير الموجود في القائمة:');if(!n)return;
- S.shorts.push({id:uid(),ts:Date.now(),month:SMONTH,unit:'mathkar',user:ME.id,code:'',name:n,spec:'',
-  ncode:'',uom:'',level:'',status:'شحيح',purchase:'',surplusQty:'',surplusExp:'',nearQty:'',nearExp:'',note:'',synced:false});
- save();sync(true);render();
+ if(shortLocked(SMONTH))return toast('هذا الشهر للاطلاع فقط');
+ var n=prompt('اسم الصنف غير الموجود في القائمة:');if(!n||!n.trim())return;
+ addRow({ncode:'',code:'',name:n.trim(),spec:'',uom:'',level:''});
+}
+/* تنظيف التكرار — للإدارة، ويخبرك بما أزاله */
+function cleanShorts(){
+ var r=fixShorts();
+ render();
+ toast(r.dropped?('أُزيل '+r.dropped+' سطراً مكرراً'):'لا تكرار في الجهاز');
 }
 function submitShort(){
  var rows=shortRows(SMONTH);
@@ -1790,7 +1871,9 @@ function restore(inp){var f=inp.files[0];if(!f)return;var r=new FileReader();
 
 if(SERVED_URL&&SERVED_URL.indexOf('http')===0&&!S.syncUrl){S.syncUrl=SERVED_URL;save()}
 (S.addedItems||[]).forEach(registerAdded);
-seedShortAug();   /* أعد بناء فهرس الأصناف المضافة عند الإقلاع */
+fixShorts();
+seedShortAug();
+fixShorts();   /* أعد بناء فهرس الأصناف المضافة عند الإقلاع */
 if(S.session&&S.session.id&&(S.pw||{})[S.session.u]){
  var cand=ORG.users.find(function(x){return x.id===S.session.id})||null;
  if(cand&&cand.role==='tech'&&S.session.day!==today()){S.session=null;save();cand=null;}
