@@ -100,8 +100,8 @@ var TASKS=[
  {id:'handover',unit:'khafira',title:'تسليم واستلام الخفارة',freq:'daily',duty:'any',note:true}
 ];
 var DUTY={ 'P055':['jard'], 'P017':['order'] }; /* مصطفى فضل = الجرد · ريام علاء = الطلبية */
-var DEF={v:4,ids:{},moves:[],session:null,pw:{},shorts:[],notes:[],utasks:[],dutyTs:0,dutySynced:true,syncUrl:'',device:'',counts:[],orders:[],dones:[],addedItems:[],staff:STAFF,duty:DUTY,lastPull:0};
-var S=load(); if(!S.dutySwap)S.dutySwap={};
+var DEF={v:4,ids:{},moves:[],clinic:[],session:null,pw:{},shorts:[],notes:[],utasks:[],dutyTs:0,dutySynced:true,syncUrl:'',device:'',counts:[],orders:[],dones:[],addedItems:[],staff:STAFF,duty:DUTY,lastPull:0};
+var S=load(); if(!S.dutySwap)S.dutySwap={}; if(!S.clinic)S.clinic=[];
 var ME=null, LOGINERR='', REG='', SORTBY='idx', TAB='', KIND='drug', VIEW='mine', Q='', LINES=[], OTYPE='clin', SUNIT='', CUR=null;
 
 function load(){
@@ -293,15 +293,16 @@ async function sync(silent){
      sr=S.shorts.filter(function(x){return !x.synced}),nt=S.notes.filter(function(x){return !x.synced}),
      ut2=S.utasks.filter(function(x){return !x.synced}),
      mv=(S.moves||[]).filter(function(x){return !x.synced}),
+     cl=(S.clinic||[]).filter(function(x){return !x.synced}),
      st=(ME&&ME.role==='admin')?S.staff.filter(function(x){return x.synced===false}):[];
  var dutyPush=[];
  if(ME&&ME.role==='admin'&&S.dutySynced===false)dutyPush.push({k:'duty',v:JSON.stringify(S.duty),ts:S.dutyTs||Date.now()});
  if(ME&&ME.role==='admin'&&S.dutySwapSynced===false)dutyPush.push({k:'dutyswap',v:JSON.stringify(S.dutySwap||{}),ts:S.dutySwapTs||Date.now()});
- var pushed=(c.length||o.length||d.length||it.length||sr.length||nt.length||ut2.length||st.length||dutyPush.length||mv.length);
+ var pushed=(c.length||o.length||d.length||it.length||sr.length||nt.length||ut2.length||st.length||dutyPush.length||mv.length||cl.length);
  try{
   if(pushed){
    await postRows({action:'push',device:S.device,counts:c,orders:o.map(flat),dones:d,items:it,
-     shorts:sr,notes:nt,utasks:ut2,staff:st.map(flatStaff),settings:dutyPush,moves:mv});
+     shorts:sr,notes:nt,utasks:ut2,staff:st.map(flatStaff),settings:dutyPush,moves:mv,clinic:cl.map(flat)});
   }
   var wantStaff=(ME&&(ME.role==='admin'||ME.role==='tech'))?'':'&staff=0&me='+encodeURIComponent(ME?ME.id:'');
   var j2=await jsonp('action=pull&since='+(S.lastPull||0)+wantStaff);
@@ -321,7 +322,15 @@ async function sync(silent){
      if(x.k==='duty'&&Number(x.ts)>(S.dutyTs||0)){try{S.duty=JSON.parse(x.v);S.dutyTs=Number(x.ts);S.dutySynced=true}catch(e){}}
      if(x.k==='dutyswap'&&Number(x.ts)>(S.dutySwapTs||0)){try{S.dutySwap=JSON.parse(x.v);S.dutySwapTs=Number(x.ts);S.dutySwapSynced=true}catch(e){}}});
    merge(S.moves,j2.moves);
-   if(pushed)confirmPushed(j2,[c,o,d,it,sr,nt,ut2,st,mv],dutyPush);
+   (j2.clinic||[]).forEach(function(x){
+     if(!x||!x.id)return;
+     if(typeof x.lines==='string'){try{x.lines=JSON.parse(x.lines||'[]')}catch(e){x.lines=[]}}
+     var cur=S.clinic.find(function(y){return y.id===x.id});
+     if(!cur){x.synced=true;S.clinic.push(x);return}
+     if(Number(x.ts||0)>=Number(cur.ts||0)){layer(cur,x);cur.synced=true}
+   });
+   if(j2.clinic&&j2.clinic.length)fixClinic();
+   if(pushed)confirmPushed(j2,[c,o,d,it,sr,nt,ut2,st,mv,cl],dutyPush);
    S.lastPull=j2.now||Date.now();
   }
   save();pill();if(!silent){toast('تمت المزامنة ✓');render()}
@@ -329,7 +338,7 @@ async function sync(silent){
 }
 function confirmPushed(j2,groups,dutyPush){
  var seen={};
- ['counts','orders','dones','items','shorts','notes','utasks','staff','moves'].forEach(function(k){
+ ['counts','orders','dones','items','shorts','notes','utasks','staff','moves','clinic'].forEach(function(k){
   (j2[k]||[]).forEach(function(r){if(r&&r.id)seen[r.id]=1;if(r&&r.c)seen[r.c]=1})});
  groups.forEach(function(a){a.forEach(function(x){if(seen[x.id]||seen[x.c])x.synced=true})});
  dutyPush.forEach(function(p){
@@ -433,6 +442,7 @@ function render(){
    ? [['dash','اللوحة','◧'],['inv','المخزون','▦'],['units','الوحدات','▦'],['staff','الكادر','☰'],['me','ملفي','☺'],['data','البيانات','⚙']]
    : [['today','اليوم','☑'],['jard','الجرد','▦'],['order','الطلبية','✎']]
      .concat(ME.unit==='mathkar'?[['orders_in','طلبيات الوحدات','⇄'],['short','شحيح ومفقود','▤']]:[])
+     .concat(isClinic(ME.unit)?[['chart','جدول الجولة','☰'],['clinorder','طلبية اليوم','⇄']]:[])
      .concat([['unit','وحدتي','◧'],['me','ملفي','☺']]);
  var allowed=tabs.map(function(x){return x[0]});
  if(allowed.indexOf('jard')>=0)allowed.push('quick');   /* شاشة الإدخال السريع تابعة للجرد */
@@ -440,7 +450,7 @@ function render(){
  if(canSeeDuty())allowed.push('short');   /* موقف الشحيح يُفتح من شاشة المذخر */                  /* الخفارة تُفتح من اللوحة لا من الشريط */
  if(!TAB||allowed.indexOf(TAB)<0)TAB=allowed[0];   /* لا يفتح أحد شاشة ليست له */
  nav.innerHTML=tabs.map(function(t){return '<button class="'+(TAB===t[0]?'act':'')+'" onclick="go(\''+t[0]+'\')"><i>'+t[2]+'</i>'+t[1]+'</button>'}).join('');
- app.innerHTML = TAB==='duty'?dutyV():TAB==='quick'?quickV():TAB==='inv'?ledgerV():TAB==='orders_in'?ordersInV():TAB==='me'?meV():TAB==='jard'&&hasRegs(ME.unit)?ledgerV():TAB==='tdash'?tdashV():TAB==='send'?sendV():TAB==='dir'?dirV():TAB==='view'?viewV()
+ app.innerHTML = TAB==='chart'?chartV():TAB==='clinorder'?clinOrderV():TAB==='duty'?dutyV():TAB==='quick'?quickV():TAB==='inv'?ledgerV():TAB==='orders_in'?ordersInV():TAB==='me'?meV():TAB==='jard'&&hasRegs(ME.unit)?ledgerV():TAB==='tdash'?tdashV():TAB==='send'?sendV():TAB==='dir'?dirV():TAB==='view'?viewV()
   :TAB==='today'?todayV():TAB==='jard'?jardV():TAB==='order'?orderV():TAB==='short'?shortV():TAB==='unit'?unitV(ME.unit)
   :TAB==='dash'?dashV():TAB==='units'?unitsV():TAB==='staff'?staffV():dataV();
 }
@@ -703,7 +713,7 @@ function addLine(code){
 function olines(){
  if(!LINES.length)return '<p class="muted">ابحث أعلاه وأضف الأصناف المطلوبة.</p>';
  return LINES.map(function(l,i){return '<div class="rowb" style="margin-bottom:6px"><div style="flex:1"><div class="nm">'+esc(l.name)+'</div></div>'+
-  '<input type="number" inputmode="numeric" placeholder="الكمية" value="'+(l.qty||'')+'" style="width:100px" onchange="LINES['+i+'].qty=this.value">'+
+  '<input type="number" inputmode="numeric" placeholder="الكمية" value="'+(l.qty||'')+'" style="width:100px" oninput="LINES['+i+'].qty=this.value">'+
   '<button class="gh" onclick="LINES.splice('+i+',1);render()">حذف</button></div>'}).join('');
 }
 function sendOrder(){
@@ -876,8 +886,11 @@ function addRow(o){
  if(shortLocked(SMONTH))return toast('هذا الشهر للاطلاع فقط');
  var k=skey(o);
  if(shortRows(SMONTH).some(function(r){return skey(r)===k}))return toast('مضاف مسبقاً في هذا الشهر');
- var ms=shortMonths().filter(function(m){return m<SMONTH}).sort();
- var prev=ms.length?shortRows(ms[ms.length-1]).find(function(r){return skey(r)===k}):null;
+ /* آخر مرة ظهر فيها هذا الصنف في أي شهر سابق — لا الشهر الماضي وحده */
+ var ms=shortMonths().filter(function(m){return m<SMONTH}).sort(), prev=null;
+ for(var i=ms.length-1;i>=0&&!prev;i--){
+   prev=shortRows(ms[i]).find(function(r){return skey(r)===k})||null;
+ }
  S.shorts.push({id:uid(),ts:Date.now(),month:SMONTH,unit:'mathkar',user:ME.id,
   code:o.code||(prev?prev.code:'')||'',name:o.name,spec:o.spec||(prev?prev.spec:'')||'',
   ncode:o.ncode||(prev?prev.ncode:'')||'',
@@ -893,11 +906,10 @@ function addRow(o){
 /* نسخ أصناف الشهر الماضي بأرقامها ليُعدّلوا عليها */
 function copyLast(){
  if(shortLocked(SMONTH))return toast('هذا الشهر للاطلاع فقط');
- var ms=shortMonths().filter(function(m){return m<SMONTH}).sort();
- var prev=ms[ms.length-1];
- if(!prev)return toast('لا يوجد شهر سابق');
- var src=shortRows(prev);
- if(!src.length)return toast('لا أصناف في '+monthLabel(prev));
+ /* أحدث شهر سابق فيه أصناف فعلاً — لا يتوقف عند شهر فارغ */
+ var ms=shortMonths().filter(function(m){return m<SMONTH}).sort(), prev='', src=[];
+ for(var i=ms.length-1;i>=0;i--){var r=shortRows(ms[i]); if(r.length){prev=ms[i];src=r;break}}
+ if(!prev)return toast('لا يوجد شهر سابق فيه أصناف');
  var have={};shortRows(SMONTH).forEach(function(r){have[skey(r)]=1});
  var add=[],n=0;
  src.forEach(function(r){
@@ -1544,6 +1556,274 @@ function ordersInV(){
  return h;
 }
 
+/* ================= الصيدلية السريرية — جدول الجولة اليومية ================= */
+/* صف واحد لكل مريض لكل صيدلي في اليوم · lines = [{code,name,qty}] */
+var CHART_DRUGS=[{"c":"DRG-029","n":"Paracetamol tab"},{"c":"DRG-010","n":"Tegretol 200"},{"c":"DRG-002","n":"Rispridone 2"},{"c":"DRG-008","n":"Fluoxetine 20"},{"c":"DRG-007","n":"Librium 5mg"},{"c":"DRG-021","n":"Baclofen tab"},{"c":"DRG-009","n":"Gabapentin 300"},{"c":"DRG-035","n":"Inderal 40"},{"c":"DRG-019","n":"Olan 5"},{"c":"DRG-011","n":"Haloperidol 5mg"},{"c":"DRG-015","n":"Escitalopram"},{"c":"DRG-005","n":"Valium amp"},{"c":"DRG-006","n":"Lorazepam 2"},{"c":"DRG-100","n":"Azithromycin"},{"c":"DRG-016","n":"Pregabalin 75"},{"c":"DRG-054","n":"Thiamin amp"},{"c":"DRG-004","n":"Valium 5mg"},{"c":"DRG-012","n":"Mirtazapine"},{"c":"DRG-017","n":"Depakine 200"},{"c":"DRG-024","n":"Omeprazole cap"},{"c":"DRG-028","n":"Ibuprofen 200"},{"c":"CHT-IMIPRAMINE","n":"Imipramine 25"},{"c":"DRG-101","n":"Flagyl 500"},{"c":"DRG-096","n":"Augmentin 625"},{"c":"DRG-025","n":"Mobic 7.5"},{"c":"DRG-039","n":"Duspatalin 135"},{"c":"DRG-014","n":"Amitriptyline 25"}];
+var CLINIC_UNITS=['saririya'];
+function isClinic(u){return CLINIC_UNITS.indexOf(u)>=0}
+/* التاريخ قد يعود من Google Sheets كتاريخ حقيقي — أعده دائماً إلى YYYY-MM-DD */
+function dkey(v){
+ if(v==null)return '';
+ if(typeof v==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(v))return v;
+ var d=(v instanceof Date)?v:new Date(v);
+ if(isNaN(d)){var m=String(v).match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+  return m?(m[1]+'-'+String(+m[2]).padStart(2,'0')+'-'+String(+m[3]).padStart(2,'0')):String(v)}
+ d=new Date(d.getTime()+432e5);
+ return d.getUTCFullYear()+'-'+String(d.getUTCMonth()+1).padStart(2,'0')+'-'+String(d.getUTCDate()).padStart(2,'0');
+}
+function fixClinic(){
+ var ch=0;
+ S.clinic.forEach(function(r){
+  var k=dkey(r.date); if(k!==r.date){r.date=k;ch++}
+  if(typeof r.lines==='string'){try{r.lines=JSON.parse(r.lines||'[]')}catch(e){r.lines=[]}ch++}
+  if(!Array.isArray(r.lines))r.lines=[];
+ });
+ if(ch)save();
+ return ch;
+}
+function myChart(d){d=d||today();
+ return S.clinic.filter(function(r){return r.unit===ME.unit&&r.user===ME.id&&dkey(r.date)===d})
+  .sort(function(a,b){return (a.ts||0)-(b.ts||0)})}
+function unitChart(d){d=d||today();
+ return S.clinic.filter(function(r){return r.unit===ME.unit&&dkey(r.date)===d})}
+/* أسماء المرضى المُدخلة مؤخراً من أي صيدلي في الوحدة — للاقتراح فقط */
+function recentPatients(q){
+ var t=norm8(q), seen={}, out=[];
+ S.clinic.slice().sort(function(a,b){return (b.ts||0)-(a.ts||0)}).forEach(function(r){
+  if(r.unit!==ME.unit||!r.patient)return;
+  var k=norm8(r.patient); if(seen[k])return;
+  if(t&&k.indexOf(t)<0)return;
+  seen[k]=1; out.push(r);
+ });
+ return out.slice(0,8);
+}
+function addPatient(name,fromRow){
+ name=String(name||'').trim(); if(!name)return toast('اكتب اسم المريض');
+ if(myChart().some(function(r){return norm8(r.patient)===norm8(name)}))return toast('المريض مضاف في جدولك اليوم');
+ var lines=[];
+ if(fromRow&&Array.isArray(fromRow.lines))lines=fromRow.lines.map(function(l){return {code:l.code,name:l.name,qty:l.qty}});
+ S.clinic.push({id:uid(),ts:Date.now(),date:today(),unit:ME.unit,user:ME.id,patient:name,
+   lines:lines,note:'',synced:false});
+ var f=document.getElementById('pname'); if(f)f.value='';
+ save();sync(true);render();
+ toast(lines.length?'أُضيف مع علاج آخر مرة ✓':'أُضيف المريض ✓');
+}
+function delPatient(id){
+ var r=S.clinic.find(function(x){return x.id===id}); if(!r)return;
+ if(!confirm('حذف '+r.patient+' من جدول اليوم؟'))return;
+ S.clinic=S.clinic.filter(function(x){return x.id!==id});save();render();toast('حُذف');
+}
+function setDrug(id,code,name,qty){
+ var r=S.clinic.find(function(x){return x.id===id}); if(!r)return;
+ if(!Array.isArray(r.lines))r.lines=[];
+ var i=-1; for(var j=0;j<r.lines.length;j++){if(r.lines[j].code===code){i=j;break}}
+ if(qty===null){ if(i>=0)r.lines.splice(i,1); }
+ else if(i>=0){ r.lines[i].qty=qty } 
+ else { r.lines.push({code:code,name:name,qty:qty}) }
+ r.ts=Date.now();r.synced=false;
+ save(); deb('clin',function(){sync(true)});
+}
+function drugQty(r,code){
+ var l=(r.lines||[]).find(function(x){return x.code===code});
+ return l?l.qty:null;
+}
+function toggleDrug(id,code,name){
+ var r=S.clinic.find(function(x){return x.id===id}); if(!r)return;
+ var cur=drugQty(r,code);
+ setDrug(id,code,name,cur===null?1:null);
+ drawPatient(id);
+}
+function qtyIn(id,code,name,v){
+ var n=(v===''?'':Math.max(0,parseInt(v,10)||0));
+ setDrug(id,code,name,n===''?1:n);
+ var e=document.getElementById('cs-'+id); if(e){e.textContent='يُحفظ…';e.style.color='#8A6100';
+  deb('m'+id,function(){var x=document.getElementById('cs-'+id);if(x){x.textContent='محفوظ ✓';x.style.color='#0B6B2E'}})}
+}
+/* ---------- الشاشة ---------- */
+var CPAT=null;
+function chartV(){
+ var rows=myChart(), d=today();
+ var tot=rows.reduce(function(a,r){return a+(r.lines||[]).length},0);
+ var h='<div class="card"><h2>جدول الجولة — '+d+'</h2>'+
+  '<p class="muted">اكتب اسم المريض ثم اضغط الأدوية. كل ضغطة تُحفظ فوراً.</p>'+
+  '<div class="kpis"><div class="kpi"><div class="n">'+rows.length+'</div><small>مريض</small></div>'+
+  '<div class="kpi"><div class="n">'+tot+'</div><small>سطر علاج</small></div></div>'+
+  '<label>اسم المريض</label><input id="pname" placeholder="اكتب الاسم…" oninput="psuggest(this.value)">'+
+  '<div id="psug"></div>'+
+  '<div class="rowb" style="margin-top:9px"><button class="ok" style="flex:1" onclick="addPatient(document.getElementById(\'pname\').value)">+ إضافة مريض</button></div>'+
+  '</div>';
+ if(!rows.length)return h+'<div class="card muted">لم يُضف أي مريض بعد اليوم.</div>';
+ h+=rows.map(function(r,i){return patientCard(r,i+1)}).join('');
+ h+='<div class="card"><div class="rowb">'+
+  '<button class="ok" style="flex:1" onclick="printChart()">طباعة الجدول</button>'+
+  '<button class="sec" onclick="wordChart()">تحميل Word</button></div></div>';
+ return h;
+}
+function psuggest(q){
+ var el=document.getElementById('psug'); if(!el)return;
+ q=String(q||'').trim();
+ if(q.length<2){el.innerHTML='';return}
+ var arr=recentPatients(q);
+ el.innerHTML=arr.length?arr.map(function(r){
+   var n=(r.lines||[]).length;
+   return '<div class="item" onclick="addPatientFrom(\''+r.id+'\')"><div class="nm">'+esc(r.patient)+'</div>'+
+    '<div class="sb">'+dkey(r.date)+' · '+esc(userName(r.user).split(' ')[0])+' · '+n+' دواء — اضغط للإضافة بنفس العلاج</div></div>'}).join(''):'';
+}
+function addPatientFrom(id){
+ var r=S.clinic.find(function(x){return x.id===id}); if(!r)return;
+ addPatient(r.patient,r);
+}
+function patientCard(r,n){
+ var sel=(r.lines||[]);
+ var extra=sel.filter(function(l){return !CHART_DRUGS.some(function(d){return d.c===l.code})});
+ return '<div class="item" id="pc-'+r.id+'">'+patientBody(r,n,extra)+'</div>';
+}
+function patientBody(r,n,extra){
+ var sel=(r.lines||[]);
+ var chips=CHART_DRUGS.map(function(d){
+   var q=drugQty(r,d.c);
+   var on=(q!==null);
+   return '<div style="display:inline-flex;align-items:center;margin:0 0 5px 5px;border:1px solid '+(on?'#2E5C9E':'#DCE2EC')+
+    ';border-radius:9px;overflow:hidden;background:'+(on?'#2E5C9E':'#fff')+'">'+
+    '<button style="font-size:11.5px;padding:6px 8px;background:none;color:'+(on?'#fff':'#17233A')+
+      ';border:0" onclick="toggleDrug(\''+r.id+'\',\''+d.c+'\',\''+esc(d.n).replace(/'/g,"\\'")+'\')">'+esc(d.n)+'</button>'+
+    (on?'<input type="number" inputmode="numeric" value="'+q+'" style="width:52px;border:0;border-inline-start:1px solid #fff;'+
+      'text-align:center;font-size:12px;padding:5px 2px" oninput="qtyIn(\''+r.id+'\',\''+d.c+'\',\''+esc(d.n).replace(/'/g,"\\'")+'\',this.value)">':'')+
+    '</div>'}).join('');
+ var ex=(extra||[]).map(function(l){
+   return '<div class="rowb" style="margin-top:5px"><div style="flex:1"><div class="sb">'+esc(l.name)+'</div></div>'+
+   '<input type="number" inputmode="numeric" value="'+l.qty+'" style="width:70px" oninput="qtyIn(\''+r.id+'\',\''+l.code+'\',\''+esc(l.name).replace(/'/g,"\\'")+'\',this.value)">'+
+   '<button class="gh" style="font-size:11px;padding:5px 8px" onclick="setDrug(\''+r.id+'\',\''+l.code+'\',\'\',null);drawPatient(\''+r.id+'\')">حذف</button></div>'}).join('');
+ return '<div class="rowb"><div style="flex:1"><div class="nm">'+n+'. '+esc(r.patient)+'</div>'+
+   '<div class="sb">'+sel.length+' دواء</div></div>'+
+   '<span class="sb" id="cs-'+r.id+'" style="color:#0B6B2E;margin-inline-end:8px">محفوظ ✓</span>'+
+   '<button class="gh" style="font-size:11px;padding:5px 9px" onclick="delPatient(\''+r.id+'\')">حذف</button></div>'+
+   '<div style="margin-top:7px">'+chips+'</div>'+ex+
+   '<input placeholder="دواء آخر — ابحث…" style="margin-top:6px" oninput="dsearch(\''+r.id+'\',this.value)">'+
+   '<div id="ds-'+r.id+'"></div>';
+}
+function drawPatient(id){
+ var r=S.clinic.find(function(x){return x.id===id}); if(!r)return;
+ var el=document.getElementById('pc-'+id); if(!el)return render();
+ var rows=myChart(), n=rows.findIndex(function(x){return x.id===id})+1;
+ var extra=(r.lines||[]).filter(function(l){return !CHART_DRUGS.some(function(d){return d.c===l.code})});
+ el.innerHTML=patientBody(r,n,extra);
+}
+function dsearch(id,q){
+ var el=document.getElementById('ds-'+id); if(!el)return;
+ q=String(q||'').trim(); if(q.length<2){el.innerHTML='';return}
+ var t=norm8(q);
+ var arr=items('drug').concat(items('supply')).filter(function(i){
+   return norm8(i.n+' '+(i.s||'')).indexOf(t)>=0 && !CHART_DRUGS.some(function(d){return d.c===i.c})}).slice(0,8);
+ el.innerHTML=arr.map(function(i){
+   return '<div class="item" onclick="setDrug(\''+id+'\',\''+i.c+'\',\''+esc(i.n).replace(/'/g,"\\'")+'\',1);drawPatient(\''+id+'\')">'+
+   '<div class="nm">'+esc(i.n)+'</div><div class="sb">'+esc(i.s||'')+' · اضغط للإضافة</div></div>'}).join('');
+}
+/* ---------- المجاميع والطباعة ---------- */
+function chartTotals(rows){
+ var t={},order=[];
+ rows.forEach(function(r){(r.lines||[]).forEach(function(l){
+   var q=+l.qty||0; if(!t[l.code]){t[l.code]={name:l.name,qty:0};order.push(l.code)}
+   t[l.code].qty+=q;})});
+ order.sort(function(a,b){
+   var ia=CHART_DRUGS.findIndex(function(d){return d.c===a}), ib=CHART_DRUGS.findIndex(function(d){return d.c===b});
+   if(ia<0)ia=99; if(ib<0)ib=99; return ia-ib;});
+ return order.map(function(c){return {code:c,name:t[c].name,qty:t[c].qty}});
+}
+function chartHTML(rows,who,d){
+ var cols=chartTotals(rows);
+ var head=cols.map(function(c){return '<th class="v"><div>'+esc(c.name)+'</div></th>'}).join('');
+ var body=rows.map(function(r,i){
+   return '<tr><td class="c">'+(i+1)+'</td><td class="nm">'+esc(r.patient)+'</td>'+
+    cols.map(function(c){var q=drugQty(r,c.code);return '<td class="c">'+(q===null||q===''?'':q)+'</td>'}).join('')+'</tr>'}).join('');
+ var tot='<tr class="tot"><td class="c"></td><td class="nm">المجموع</td>'+
+   cols.map(function(c){return '<td class="c">'+c.qty+'</td>'}).join('')+'</tr>';
+ return '<!DOCTYPE html><html dir="rtl"><head><meta charset="utf-8"><title>جدول الجولة</title><style>'+
+  'body{font-family:Arial,Tahoma,sans-serif;margin:10px;color:#000}'+
+  'h3{text-align:center;margin:2px 0;font-size:14px}'+
+  '.sub{text-align:center;font-size:11px;margin-bottom:8px}'+
+  'table{border-collapse:collapse;width:100%}'+
+  'th,td{border:1px solid #000;font-size:10px;padding:2px}'+
+  'th.v{height:120px;white-space:nowrap}'+
+  'th.v div{writing-mode:vertical-rl;transform:rotate(180deg);margin:0 auto;font-weight:600}'+
+  'td.c{text-align:center;width:26px}td.nm{min-width:130px;padding-inline-start:4px}'+
+  'tr.tot td{font-weight:700;background:#eee}'+
+  '.sig{margin-top:14px;display:flex;justify-content:space-between;font-size:11px}'+
+  '.sig div{border-top:1px solid #000;padding-top:3px;width:30%;text-align:center}'+
+  '@page{size:A4 landscape;margin:8mm}'+
+  '</style></head><body>'+
+  '<h3>مركز الوقاية والتأهيل الاجتماعي — شعبة الصيدلة</h3>'+
+  '<div class="sub">جدول الجولة اليومية · الصيدلية السريرية</div>'+
+  '<div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:5px">'+
+   '<div>الصيدلاني : <b>'+esc(who)+'</b></div><div>التاريخ : <b>'+esc(d)+'</b></div></div>'+
+  '<table><tr><th class="c">ت</th><th>الاسم</th>'+head+'</tr>'+body+tot+'</table>'+
+  '<div class="sig"><div>التوقيع</div><div>الختم</div><div>الصيدلاني المسؤول</div></div>'+
+  '</body></html>';
+}
+function printChart(){
+ var rows=myChart(); if(!rows.length)return toast('الجدول فارغ');
+ var w=window.open('','_blank');
+ if(!w)return toast('اسمح بالنوافذ المنبثقة للطباعة');
+ w.document.write(chartHTML(rows,userName(ME.id),today()));
+ w.document.close();
+ setTimeout(function(){try{w.focus();w.print()}catch(e){}},500);
+}
+function wordChart(){
+ var rows=myChart(); if(!rows.length)return toast('الجدول فارغ');
+ var html=chartHTML(rows,userName(ME.id),today());
+ var blob=new Blob(['\ufeff'+html],{type:'application/msword'});
+ var a=document.createElement('a');
+ a.href=URL.createObjectURL(blob);
+ a.download='جدول الجولة — '+userName(ME.id).split(' ')[0]+' — '+today()+'.doc';
+ document.body.appendChild(a);a.click();
+ setTimeout(function(){URL.revokeObjectURL(a.href);a.remove()},1000);
+ toast('نُزّل الملف ✓');
+}
+/* ---------- طلبية اليوم — لكل أعضاء الوحدة ---------- */
+var CDBL=false;
+function clinOrderV(){
+ var d=today(), rows=unitChart(d);
+ var who={}; rows.forEach(function(r){who[r.user]=1});
+ var n=Object.keys(who).length;
+ var team=ORG.users.filter(function(u){return u.unit===ME.unit}).length;
+ var cols=chartTotals(rows);
+ var dow=new Date().getDay();
+ var h='<div class="card"><h2>طلبية اليوم — '+d+'</h2>'+
+  '<p class="muted">مجموع كل جداول اليوم. انقلها إلى الطلبية الورقية للصيدلية الداخلية.</p>'+
+  '<div class="kpis"><div class="kpi"><div class="n">'+n+' / '+team+'</div><small>صيادلة أرسلوا</small></div>'+
+  '<div class="kpi"><div class="n">'+rows.length+'</div><small>مريض</small></div>'+
+  '<div class="kpi"><div class="n">'+cols.length+'</div><small>صنف</small></div></div>'+
+  (dow===4?'<div class="warn" style="margin-top:8px">اليوم الخميس — التجهيز عادة مضاعف.</div>':'')+
+  '<div class="rowb" style="margin-top:9px">'+
+   '<button class="'+(CDBL?'ok':'gh')+'" style="flex:1" onclick="CDBL=!CDBL;render()">'+(CDBL?'✓ مضاعفة مُفعّلة (×٢)':'مضاعفة الكميات (عطلة / خميس)')+'</button>'+
+   '<button class="sec" onclick="printOrder()">طباعة</button></div></div>';
+ if(!cols.length)return h+'<div class="card muted">لم يُرسل أي جدول اليوم بعد.</div>';
+ h+='<div class="card"><table><tr><th>ت</th><th>الصنف</th><th>الكمية</th></tr>'+
+  cols.map(function(c,i){return '<tr><td>'+(i+1)+'</td><td style="text-align:right">'+esc(c.name)+'</td>'+
+   '<td><b>'+(CDBL?c.qty*2:c.qty)+'</b></td></tr>'}).join('')+'</table></div>';
+ h+='<div class="card"><h2>من أرسل اليوم</h2>'+
+  ORG.users.filter(function(u){return u.unit===ME.unit}).map(function(u){
+   var c=rows.filter(function(r){return r.user===u.id}).length;
+   return '<div class="rowb"><div style="flex:1"><div class="sb">'+esc(u.short)+'</div></div>'+
+    '<span class="tag '+(c?'g':'')+'">'+(c?c+' مريض':'لم يرسل')+'</span></div>'}).join('')+'</div>';
+ return h;
+}
+function printOrder(){
+ var d=today(), cols=chartTotals(unitChart(d)); if(!cols.length)return toast('لا توجد طلبية');
+ var w=window.open('','_blank'); if(!w)return toast('اسمح بالنوافذ المنبثقة');
+ w.document.write('<!DOCTYPE html><html dir="rtl"><head><meta charset="utf-8"><style>'+
+  'body{font-family:Arial,Tahoma;margin:14px}h3{text-align:center;margin:2px}'+
+  'table{border-collapse:collapse;width:100%;margin-top:10px}th,td{border:1px solid #000;padding:4px;font-size:12px}'+
+  '.c{text-align:center}</style></head><body>'+
+  '<h3>مركز الوقاية والتأهيل الاجتماعي — شعبة الصيدلة</h3>'+
+  '<div style="text-align:center;font-size:12px">طلبية الصيدلية السريرية إلى الصيدلية الداخلية'+(CDBL?' — مضاعفة':'')+'</div>'+
+  '<div style="text-align:left;font-size:12px;margin-top:6px">التاريخ : '+d+'</div>'+
+  '<table><tr><th class="c">ت</th><th>الصنف</th><th class="c">الكمية</th></tr>'+
+  cols.map(function(c,i){return '<tr><td class="c">'+(i+1)+'</td><td>'+esc(c.name)+'</td><td class="c">'+(CDBL?c.qty*2:c.qty)+'</td></tr>'}).join('')+
+  '</table><div style="margin-top:20px;font-size:12px">التوقيع : ..............................</div></body></html>');
+ w.document.close(); setTimeout(function(){try{w.focus();w.print()}catch(e){}},500);
+}
+
 /* ---------- شاشة المسؤول ---------- */
 function unitV(u){
  var dow=new Date().getDay(),ts=tasksFor(u,dow),d=today();
@@ -1873,6 +2153,7 @@ if(SERVED_URL&&SERVED_URL.indexOf('http')===0&&!S.syncUrl){S.syncUrl=SERVED_URL;
 (S.addedItems||[]).forEach(registerAdded);
 fixShorts();
 seedShortAug();
+fixClinic();
 fixShorts();   /* أعد بناء فهرس الأصناف المضافة عند الإقلاع */
 if(S.session&&S.session.id&&(S.pw||{})[S.session.u]){
  var cand=ORG.users.find(function(x){return x.id===S.session.id})||null;
