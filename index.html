@@ -462,7 +462,8 @@ function render(){
    : ME.role==='admin'
    ? [['dash','اللوحة','◧'],['inv','المخزون','▦'],['units','الوحدات','▦'],['staff','الكادر','☰'],['me','ملفي','☺'],['data','البيانات','⚙']]
    : (isClinic(ME.unit)?[['today','اليوم','☑']]
-      : [['today','اليوم','☑'],['jard','الجرد','▦'],['order','الطلبية','✎']])
+      : isFlat(ME.unit)?[['today','اليوم','☑'],['jard','الجرد','▦'],['khmove','الحركة','⇄'],['order','الطلبية','✎']]
+     : [['today','اليوم','☑'],['jard','الجرد','▦'],['order','الطلبية','✎']])
      .concat(ME.unit==='mathkar'?[['orders_in','طلبيات الوحدات','⇄'],['short','شحيح ومفقود','▤']]:[])
      .concat(isClinic(ME.unit)?[['chart','جدول الجولة','☰'],['clinorder','طلبية اليوم','⇄'],['charch','الأرشيف','▤']]:[])
      .concat([['unit','وحدتي','◧'],['me','ملفي','☺']]);
@@ -472,7 +473,7 @@ function render(){
  if(canSeeDuty())allowed.push('short');   /* موقف الشحيح يُفتح من شاشة المذخر */                  /* الخفارة تُفتح من اللوحة لا من الشريط */
  if(!TAB||allowed.indexOf(TAB)<0)TAB=allowed[0];   /* لا يفتح أحد شاشة ليست له */
  nav.innerHTML=tabs.map(function(t){return '<button class="'+(TAB===t[0]?'act':'')+'" onclick="go(\''+t[0]+'\')"><i>'+t[2]+'</i>'+t[1]+'</button>'}).join('');
- app.innerHTML = TAB==='chart'?chartV():TAB==='charch'?archV():TAB==='clinorder'?clinOrderV():TAB==='duty'?dutyV():TAB==='quick'?quickV():TAB==='inv'?ledgerV():TAB==='orders_in'?ordersInV():TAB==='me'?meV():TAB==='jard'&&hasRegs(ME.unit)?ledgerV():TAB==='tdash'?tdashV():TAB==='send'?sendV():TAB==='dir'?dirV():TAB==='view'?viewV()
+ app.innerHTML = TAB==='chart'?chartV():TAB==='charch'?archV():TAB==='clinorder'?clinOrderV():TAB==='duty'?dutyV():TAB==='quick'?quickV():TAB==='inv'?ledgerV():TAB==='orders_in'?ordersInV():TAB==='me'?meV():TAB==='khmove'?khmoveV():TAB==='jard'&&isFlat(ME.unit)?khV():TAB==='jard'&&hasRegs(ME.unit)?ledgerV():TAB==='tdash'?tdashV():TAB==='send'?sendV():TAB==='dir'?dirV():TAB==='view'?viewV()
   :TAB==='today'?todayV():TAB==='jard'?jardV():TAB==='order'?orderV():TAB==='short'?shortV():TAB==='unit'?unitV(ME.unit)
   :TAB==='dash'?dashV():TAB==='units'?unitsV():TAB==='staff'?staffV():dataV();
 }
@@ -1236,7 +1237,7 @@ function lotsOf(unit,kind,code){                     /* الوجبات: من ا�
 }
 function nearestExpiry(unit,kind,code){var l=lotsOf(unit,kind,code).filter(function(x){return x.expiry});return l.length?l[0].expiry:''}
 function addMove(o){
- o.id=uid();o.ts=Date.now();o.date=o.date||today();o.unit=lunit();o.user=ME.id;o.hist=o.hist||'';o.synced=false;
+ o.id=uid();o.ts=Date.now();o.date=o.date||today();o.unit=o.unit||lunit();o.user=ME.id;o.hist=o.hist||'';o.synced=false;
  S.moves.push(o);save();sync(true);
 }
 
@@ -1581,6 +1582,11 @@ function ordersInV(){
 /* ================= الصيدلية السريرية — جدول الجولة اليومية ================= */
 /* صف واحد لكل مريض لكل صيدلي في اليوم · lines = [{code,name,qty}] */
 var CHART_DRUGS=[{"c":"DRG-029","n":"Paracetamol tab"},{"c":"DRG-010","n":"Tegretol 200"},{"c":"DRG-002","n":"Rispridone 2"},{"c":"DRG-008","n":"Fluoxetine 20"},{"c":"DRG-007","n":"Librium 5mg"},{"c":"DRG-021","n":"Baclofen tab"},{"c":"DRG-009","n":"Gabapentin 300"},{"c":"DRG-035","n":"Inderal 40"},{"c":"DRG-019","n":"Olan 5"},{"c":"DRG-011","n":"Haloperidol 5mg"},{"c":"DRG-015","n":"Escitalopram"},{"c":"DRG-005","n":"Valium amp"},{"c":"DRG-006","n":"Lorazepam 2"},{"c":"DRG-100","n":"Azithromycin"},{"c":"DRG-016","n":"Pregabalin 75"},{"c":"DRG-054","n":"Thiamin amp"},{"c":"DRG-004","n":"Valium 5mg"},{"c":"DRG-012","n":"Mirtazapine"},{"c":"DRG-017","n":"Depakine 200"},{"c":"DRG-024","n":"Omeprazole cap"},{"c":"DRG-028","n":"Ibuprofen 200"},{"c":"CHT-IMIPRAMINE","n":"Imipramine 25"},{"c":"DRG-101","n":"Flagyl 500"},{"c":"DRG-096","n":"Augmentin 625"},{"c":"DRG-025","n":"Mobic 7.5"},{"c":"DRG-039","n":"Duspatalin 135"},{"c":"DRG-014","n":"Amitriptyline 25"}];
+/* ===== الصيدلية الخافرة — ليث محمد · جرد يومي مسطّح بلا سجلات ===== */
+var FLAT_UNITS=['khafira'];
+function isFlat(u){return FLAT_UNITS.indexOf(u)>=0}
+var KHAF_DATE='2026-10-28';
+var KHAF_SEED=[{"k":"drug","c":"DRG-007","b":"25","e":"2028-11-30","m":"sdi","q":442},{"k":"drug","c":"DRG-004","b":"15","e":"2028-02-29","m":"aljazeera","q":91},{"k":"drug","c":"DRG-006","b":"25","e":"2028-08-31","m":"sdi","q":292},{"k":"drug","c":"DRG-005","b":"251449D","e":"2027-05-31","m":"pioneer","q":16},{"k":"drug","c":"DRG-001","b":"B90724K","e":"2029-11-30","m":"aspen","q":69},{"k":"drug","c":"DRG-021","b":"TAV604","e":"2029-06-30","m":"honus","q":83},{"k":"drug","c":"DRG-016","b":"","e":"2027-03-31","m":"pioneer","q":6},{"k":"drug","c":"DRG-014","b":"25","e":"2028-02-29","m":"sdi","q":20},{"k":"drug","c":"DRG-012","b":"GT2891","e":"2028-02-29","m":"kwality","q":138},{"k":"drug","c":"DRG-019","b":"50","e":"2028-02-29","m":"kindi","q":700},{"k":"drug","c":"DRG-029","b":"41","e":"2027-10-31","m":"mdi","q":200},{"k":"drug","c":"DRG-002","b":"42","e":"2027-07-31","m":"kindi","q":180},{"k":"drug","c":"DRG-020","b":"31","e":"2028-07-31","m":"kindi","q":86},{"k":"drug","c":"DRG-010","b":"1","e":"2029-02-28","m":"mdi","q":210},{"k":"drug","c":"DRG-035","b":"2","e":"2027-04-30","m":"furat","q":59},{"k":"drug","c":"DRG-025","b":"243120D","e":"2027-10-31","m":"pioneer","q":36},{"k":"drug","c":"DRG-027","b":"PD1027","e":"2027-08-31","m":"awa","q":40},{"k":"drug","c":"DRG-017","b":"4R1LX","e":"2027-06-30","m":"sanofi","q":84},{"k":"drug","c":"DRG-037","b":"25","e":"2028-12-31","m":"SDI","q":69},{"k":"drug","c":"DRG-041","b":"251709D","e":"2028-05-31","m":"pioneer","q":76},{"k":"drug","c":"DRG-008","b":"2506986","e":"2028-08-31","m":"eipico","q":31},{"k":"drug","c":"DRG-009","b":"12","e":"2027-10-31","m":"safa","q":327},{"k":"drug","c":"DRG-028","b":"200","e":"2028-06-30","m":"safa","q":33},{"k":"drug","c":"DRG-034","b":"254M","e":"2028-11-30","m":"sdi","q":100},{"k":"drug","c":"DRG-038","b":"19","e":"2027-12-31","m":"mdi","q":25},{"k":"drug","c":"DRG-033","b":"34","e":"2029-01-31","m":"kindi","q":171},{"k":"drug","c":"DRG-039","b":"623","e":"2026-12-31","m":"me","q":57},{"k":"drug","c":"DRG-011","b":"110988","e":"2028-06-30","m":"remedica","q":49},{"k":"drug","c":"DRG-040","b":"251712D","e":"2028-06-30","m":"pioneer","q":56},{"k":"drug","c":"DRG-026","b":"2","e":"2029-01-31","m":"mdi","q":100},{"k":"drug","c":"DRG-013","b":"SP1140","e":"2026-11-30","m":"swiss","q":17},{"k":"drug","c":"DRG-023","b":"31","e":"2029-02-28","m":"sama alfayhaa","q":59},{"k":"drug","c":"DRG-032","b":"","e":"2028-04-30","m":"kindi","q":7},{"k":"drug","c":"DRG-018","b":"253401D","e":"2028-08-31","m":"pioneer","q":98},{"k":"drug","c":"DRG-031","b":"","e":"","m":"","q":0},{"k":"drug","c":"DRG-024","b":"GU1104","e":"2029-03-31","m":"awa","q":127},{"k":"drug","c":"DRG-044","b":"252","e":"2028-10-31","m":"dubai","q":17},{"k":"drug","c":"DRG-042","b":"","e":"2028-03-31","m":"furat","q":20},{"k":"drug","c":"DRG-022","b":"24","e":"2027-02-28","m":"sdi","q":57},{"k":"drug","c":"DRG-046","b":"24","e":"2027-01-31","m":"sdi","q":3},{"k":"drug","c":"DRG-051","b":"253688D","e":"2027-09-30","m":"pioneer","q":23},{"k":"drug","c":"DRG-057","b":"242191D","e":"2027-09-30","m":"pioneer","q":11},{"k":"drug","c":"DRG-053","b":"251588D","e":"2028-12-31","m":"pioneer","q":26},{"k":"drug","c":"DRG-093","b":"250462D","e":"2028-01-31","m":"pioneer","q":22},{"k":"drug","c":"DRG-058","b":"260671D","e":"2029-02-28","m":"pioneer","q":41},{"k":"drug","c":"DRG-050","b":"2504809","e":"2028-06-30","m":"eipico","q":15},{"k":"drug","c":"DRG-060","b":"251588D","e":"2027-02-28","m":"pioneer","q":15},{"k":"drug","c":"DRG-062","b":"PT6GE10","e":"2027-04-30","m":"novo","q":5},{"k":"drug","c":"DRG-056","b":"231711D","e":"2026-11-30","m":"pioneer","q":15},{"k":"drug","c":"DRG-063","b":"PT6GD55","e":"2027-04-30","m":"novo","q":5},{"k":"drug","c":"DRG-061","b":"RT6KL91","e":"2027-11-30","m":"novo","q":7},{"k":"drug","c":"DRG-052","b":"40079","e":"2027-01-31","m":"arwan","q":1},{"k":"drug","c":"DRG-101","b":"2533","e":"2028-12-31","m":"sdi","q":10},{"k":"drug","c":"DRG-098","b":"25","e":"2028-05-31","m":"sdi","q":80},{"k":"drug","c":"DRG-100","b":"BZ2120","e":"2027-01-31","m":"awa","q":14},{"k":"drug","c":"DRG-096","b":"6","e":"2028-02-29","m":"mdi","q":39},{"k":"drug","c":"DRG-103","b":"251676D","e":"2028-06-30","m":"pioneer","q":25},{"k":"drug","c":"DRG-099","b":"29","e":"2028-11-30","m":"mdi","q":100},{"k":"drug","c":"DRG-097","b":"44","e":"2028-12-31","m":"aljazeera","q":42},{"k":"drug","c":"DRG-104","b":"C254243D","e":"2027-12-31","m":"pioneer","q":22},{"k":"drug","c":"DRG-122","b":"13","e":"2028-02-29","m":"mdi","q":16},{"k":"drug","c":"DRG-111","b":"39","e":"2028-04-30","m":"sama alfayhaa","q":37},{"k":"drug","c":"DRG-106","b":"13","e":"2027-08-31","m":"wadi alrafiden","q":39},{"k":"drug","c":"DRG-107","b":"50","e":"2027-01-31","m":"sama alfayhaa","q":18},{"k":"drug","c":"DRG-078","b":"8","e":"2027-03-31","m":"safa","q":3},{"k":"drug","c":"DRG-068","b":"260026D","e":"2029-01-31","m":"pioneer","q":2},{"k":"drug","c":"DRG-065","b":"241061D","e":"2027-05-31","m":"pioneer","q":23},{"k":"drug","c":"DRG-070","b":"B0051","e":"2027-10-31","m":"rasan","q":3},{"k":"supply","c":"MED-014","b":"240915","e":"2029-08-31","m":"medeco","q":200},{"k":"supply","c":"MED-027","b":"202408","e":"2027-08-31","m":"nanfang","q":45},{"k":"supply","c":"MED-012","b":"123152","e":"2026-11-30","m":"","q":98}];
 var CLINIC_UNITS=['saririya'];
 function isClinic(u){return CLINIC_UNITS.indexOf(u)>=0}
 /* الكميات تقبل نصف حبة — تقريب إلى أقرب ٠٫٥ وعرض نظيف */
@@ -1986,6 +1992,170 @@ function wordChart(){
  document.body.appendChild(a);a.click();
  setTimeout(function(){URL.revokeObjectURL(a.href);a.remove()},1000);
  toast('نُزّل الملف ✓');
+}
+/* ===== الخافرة: الجرد اليومي والحركة ===== */
+function khSeeded(){return S.counts.some(function(c){return c.unit==='khafira'})}
+function khSeed(){
+ if(khSeeded())return toast('الجرد الافتتاحي محمّل مسبقاً');
+ if(!confirm('تحميل الجرد الافتتاحي للصيدلية الخافرة — '+KHAF_SEED.length+' مادة بتاريخ '+KHAF_DATE+'؟'))return;
+ var n=0;
+ KHAF_SEED.forEach(function(x){
+  var it=(x.k==='drug'?CATALOG.drugs:CATALOG.supplies).find(function(i){return i.c===x.c});
+  if(!it)return;
+  S.counts.push({id:uid(),unit:'khafira',kind:x.k,code:x.c,name:it.n,spec:it.s||'',cat:it.g||'',
+    date:KHAF_DATE,lot:1,company:x.m||'',batch:x.b||'',expiry:x.e||'',note:'رصيد افتتاحي',
+    qty:x.q,book:'',diff:'',user:'P039',ts:Date.parse(KHAF_DATE+'T08:00:00Z'),synced:false});
+  n++;
+ });
+ save();sync(true);render();toast('حُمّلت '+n+' مادة ✓');
+}
+function khDates(){
+ var d={};S.counts.forEach(function(c){if(c.unit==='khafira'){var k=dkey(c.date);if(k)d[k]=1}});
+ return Object.keys(d).sort();
+}
+function khQtyOn(kind,code,day){
+ var t=null;
+ S.counts.forEach(function(c){
+  if(c.unit!=='khafira'||c.kind!==kind||c.code!==code)return;
+  if(dkey(c.date)!==day)return;
+  if(c.qty===''||c.qty===undefined||c.qty===null)return;
+  t=(t||0)+(+c.qty||0);
+ });
+ return t;
+}
+function khPrevDay(day){var ds=khDates().filter(function(d){return d<day});return ds.length?ds[ds.length-1]:''}
+function khPrev(kind,code,day){
+ var ds=khDates().filter(function(d){return d<day});
+ for(var i=ds.length-1;i>=0;i--){var q=khQtyOn(kind,code,ds[i]);if(q!==null)return q}
+ return 0;
+}
+function khIn(kind,code,day){
+ var t=0;
+ (S.moves||[]).forEach(function(m){
+  if(m.unit!=='khafira'||m.code!==code||m.dir!=='in')return;
+  if(dkey(m.date)!==day)return;
+  t+=(+m.qty||0);
+ });
+ return t;
+}
+function khItems(){
+ var out=[];
+ ['drug','supply'].forEach(function(k){
+  unitItems('khafira',k).forEach(function(i){
+   var seen=S.counts.some(function(c){return c.unit==='khafira'&&c.kind===k&&c.code===i.c});
+   if(seen)out.push({kind:k,it:i});
+  });
+ });
+ return out;
+}
+function khAddIn(kind,code,name){
+ var q=prompt('كمية الوارد اليوم إلى الخافرة — '+name);
+ if(q===null)return;
+ q=r5(q); if(!(q>0))return toast('اكتب رقماً أكبر من صفر');
+ var from=prompt('من أي جهة؟ (المذخر / الصيدلية الداخلية / غير ذلك)','المذخر');
+ if(from===null)return;
+ addMove({unit:'khafira',kind:kind,code:code,name:name,dir:'in',qty:q,party:from||'المذخر',doc:'',
+   company:'',batch:'',expiry:'',note:'وارد الخافرة',reg:''});
+ render();toast('سُجّل الوارد ✓');
+}
+function khV(){
+ var d=today(), prevD=khPrevDay(d);
+ if(!khSeeded()){
+  return '<div class="card"><h2>الصيدلية الخافرة</h2>'+
+   '<p class="muted">لم يُحمّل الجرد الافتتاحي بعد.</p>'+
+   (ME.role==='admin'?'<button class="ok" style="width:100%" onclick="khSeed()">تحميل الجرد الافتتاحي ('+KHAF_SEED.length+' مادة)</button>'
+    :'<div class="warn">يحمّله علي عصام من حسابه مرة واحدة.</div>')+'</div>';
+ }
+ var list=khItems();
+ var done=list.filter(function(x){return khQtyOn(x.kind,x.it.c,d)!==null}).length;
+ var h='<div class="card"><h2>جرد اليوم — '+d+'</h2>'+
+  '<p class="muted">اكتب المجرود الآن لكل مادة. المصروف يُحسب تلقائياً من رصيد أمس.</p>'+
+  '<div class="kpis"><div class="kpi"><div class="n">'+done+' / '+list.length+'</div><small>مادة</small></div>'+
+  '<div class="kpi"><div class="n">'+(prevD||'—')+'</div><small>آخر جرد</small></div></div>'+
+  '<input id="kq" placeholder="ابحث…" value="'+esc(Q)+'" oninput="Q=this.value;render()"></div>';
+ var t=norm8(Q||'');
+ var shown=list.filter(function(x){return !t||norm8(x.it.n+' '+(x.it.s||'')).indexOf(t)>=0});
+ h+=shown.map(function(x){
+  var code=x.it.c, kind=x.kind;
+  var prev=khPrev(kind,code,d), inn=khIn(kind,code,d), now=khQtyOn(kind,code,d);
+  var out=(now===null)?null:r5(prev+inn-now);
+  var exp=nearestExpiry('khafira',kind,code), st=statusOf(exp);
+  return '<div class="item"><div class="rowb"><div style="flex:1">'+
+   '<div class="nm">'+esc(x.it.n)+'</div>'+
+   '<div class="sb">أمس '+fq(prev)+(inn?' · وارد '+fq(inn):'')+
+     (out===null?'':' · <b style="color:'+(out<0?'#9C0006':'#0B6B2E')+'">صُرف '+fq(out)+'</b>')+
+     (st==='منتهي'?' · <span style="color:#9C0006">منتهي</span>':st==='قريب النفاد'?' · <span style="color:#8A6100">قريب النفاد</span>':'')+
+   '</div></div>'+
+   '<input type="number" step="0.5" min="0" inputmode="decimal" style="width:84px;text-align:center;font-weight:700" '+
+     'value="'+(now===null?'':fq(now))+'" placeholder="العدد" '+
+     'oninput="khIn2(\''+kind+'\',\''+code+'\',this.value)">'+
+   '<button class="gh" style="font-size:11px;padding:6px 8px;margin-inline-start:6px" '+
+     'onclick="khAddIn(\''+kind+'\',\''+code+'\',\''+esc(x.it.n).replace(/'/g,"\\'")+'\')">+ وارد</button>'+
+   '</div></div>';
+ }).join('');
+ h+='<div class="card"><div class="rowb">'+
+  '<button class="ok" style="flex:1" onclick="go(\'khmove\')">عرض حركة اليوم</button></div></div>';
+ return h;
+}
+function khIn2(kind,code,val){
+ var d=today();
+ var row=S.counts.filter(function(c){return c.unit==='khafira'&&c.kind===kind&&c.code===code&&dkey(c.date)===d})[0];
+ var it=(kind==='drug'?CATALOG.drugs:CATALOG.supplies).find(function(i){return i.c===code});
+ if(!row){
+  var last=null;
+  S.counts.forEach(function(c){if(c.unit==='khafira'&&c.kind===kind&&c.code===code){if(!last||(c.ts||0)>(last.ts||0))last=c}});
+  row={id:uid(),unit:'khafira',kind:kind,code:code,name:it?it.n:code,spec:it?(it.s||''):'',cat:it?(it.g||''):'',
+   date:d,lot:1,company:last?last.company:'',batch:last?last.batch:'',expiry:last?last.expiry:'',
+   note:'',qty:'',book:'',diff:'',user:ME.id,ts:Date.now(),synced:false};
+  S.counts.push(row);
+ }
+ row.qty=(String(val).trim()===''?'':r5(val));
+ row.ts=Date.now();row.synced=false;
+ save();deb('kh',function(){sync(true)});
+}
+function khmoveV(){
+ var d=today(), prevD=khPrevDay(d);
+ var list=khItems(), rows=[];
+ list.forEach(function(x){
+  var prev=khPrev(x.kind,x.it.c,d), inn=khIn(x.kind,x.it.c,d), now=khQtyOn(x.kind,x.it.c,d);
+  if(now===null)return;
+  rows.push({n:x.it.n,prev:prev,inn:inn,now:now,out:r5(prev+inn-now)});
+ });
+ var moved=rows.filter(function(r){return r.out!==0});
+ var h='<div class="card"><h2>حركة اليوم — '+d+'</h2>'+
+  '<p class="muted">المصروف = رصيد '+(prevD||'آخر جرد')+' + الوارد − المجرود الآن.</p>'+
+  '<div class="kpis"><div class="kpi"><div class="n">'+rows.length+'</div><small>مادة مجرودة</small></div>'+
+  '<div class="kpi"><div class="n">'+moved.length+'</div><small>تحرّكت</small></div></div>'+
+  '<div class="rowb" style="margin-top:8px"><button class="sec" style="flex:1" onclick="khPrint()">طباعة الحركة</button></div></div>';
+ if(!rows.length)return h+'<div class="card muted">لم يُجرد أي صنف اليوم بعد.</div>';
+ h+='<div class="card"><table><tr><th>المادة</th><th>أمس</th><th>وارد</th><th>الآن</th><th>صُرف</th></tr>'+
+  rows.map(function(r){return '<tr><td style="text-align:right">'+esc(r.n)+'</td><td>'+fq(r.prev)+'</td><td>'+
+   (r.inn?fq(r.inn):'—')+'</td><td>'+fq(r.now)+'</td><td><b style="color:'+(r.out<0?'#9C0006':'#17233A')+'">'+
+   fq(r.out)+'</b></td></tr>'}).join('')+'</table></div>';
+ return h;
+}
+function khPrint(){
+ var d=today(), prevD=khPrevDay(d), list=khItems(), rows=[];
+ list.forEach(function(x){
+  var prev=khPrev(x.kind,x.it.c,d), inn=khIn(x.kind,x.it.c,d), now=khQtyOn(x.kind,x.it.c,d);
+  if(now===null)return;
+  rows.push({n:x.it.n,prev:prev,inn:inn,now:now,out:r5(prev+inn-now)});
+ });
+ if(!rows.length)return toast('لا توجد حركة اليوم');
+ var box=document.getElementById('prt'); if(!box)return toast('تعذّرت الطباعة');
+ box.innerHTML='<h3>'+HOSPITAL+' — شعبة الصيدلة</h3>'+
+  '<div class="sub">حركة المواد اليومية · الصيدلية الخافرة</div>'+
+  '<div class="meta"><span>المسؤول : <b>'+esc(userName(ME.id))+'</b></span>'+
+   '<span style="float:left">التاريخ : <b>'+esc(d)+'</b></span></div>'+
+  '<table><tr><th class="nm">المادة</th><th class="c">رصيد '+(prevD||'سابق')+'</th><th class="c">وارد</th>'+
+   '<th class="c">المجرود</th><th class="c">المصروف</th></tr>'+
+  rows.map(function(r){return '<tr><td class="nm">'+esc(r.n)+'</td><td class="c">'+fq(r.prev)+'</td><td class="c">'+
+   (r.inn?fq(r.inn):'')+'</td><td class="c">'+fq(r.now)+'</td><td class="c">'+fq(r.out)+'</td></tr>'}).join('')+
+  '</table><div class="sig"><div>التوقيع</div><div>الختم</div><div>مسؤول الشعبة</div></div>';
+ document.body.classList.add('prt');
+ var clear=function(){document.body.classList.remove('prt');box.innerHTML=''};
+ try{window.onafterprint=function(){clear();window.onafterprint=null}}catch(e){}
+ setTimeout(function(){try{window.print()}catch(e){toast('تعذّرت الطباعة')}setTimeout(clear,4000)},120);
 }
 /* ---------- أرشيف الجداول — أي يوم سابق يُعاد توليده ---------- */
 var ARCH_D='';
