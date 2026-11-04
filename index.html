@@ -1280,6 +1280,7 @@ function unitDataV(u){
 function ledgerV(){
  if(!hasRegs(ME.unit)&&!IUNIT)return unitPickV();
  var U=lunit(), ro=!canEditInv();
+ if(isFlat(U))return khAdminV(U);
  if(!hasRegs(U))return unitDataV(U);
  var regs=regsPresent(U).filter(function(r){return canSeeReg(r,U)});
  var h='<div class="card"><div class="pillbar">'+
@@ -1994,6 +1995,43 @@ function wordChart(){
  toast('نُزّل الملف ✓');
 }
 /* ===== الخافرة: الجرد اليومي والحركة ===== */
+/* شاشة الإدارة للوحدات المسطّحة — من المخزون ← الوحدة */
+function khAdminV(U){
+ var back=(!hasRegs(ME.unit)?'<button class="gh" onclick="IUNIT=\'\';REG=\'\';render()">‹ كل الوحدات</button>':'');
+ if(!khSeeded()){
+  return '<div class="card">'+back+'<h2>'+esc(unitName(U))+'</h2>'+
+   '<p class="muted">لم يُحمّل الجرد الافتتاحي بعد — '+KHAF_SEED.length+' مادة جاهزة من ملف ليث محمد بتاريخ '+KHAF_DATE+'.</p>'+
+   (ME.role==='admin'
+     ? '<button class="ok" style="width:100%;margin-top:8px" onclick="khSeed()">تحميل الجرد الافتتاحي ('+KHAF_SEED.length+' مادة)</button>'+
+       '<p class="muted" style="font-size:11px;margin-top:7px">يُنفَّذ مرة واحدة. بعدها انتظر ظهور «متزامن ✓» في الأعلى قبل إغلاق التطبيق.</p>'
+     : '<div class="warn" style="margin-top:8px">يحمّله علي عصام من حسابه.</div>')+
+   '</div>';
+ }
+ var d=today(), prevD=khPrevDay(d), list=khItems();
+ var tot=0,cnt=0,bad=0;
+ list.forEach(function(x){
+  var q=khPrev(x.kind,x.it.c,d); var n=khQtyOn(x.kind,x.it.c,d);
+  tot+=(n===null?q:n); if(n!==null)cnt++;
+  var st=statusOf(nearestExpiry(U,x.kind,x.it.c)); if(st==='منتهي'||st==='قريب النفاد')bad++;
+ });
+ var h='<div class="card">'+back+'<h2>'+esc(unitName(U))+'</h2>'+
+  '<div class="kpis"><div class="kpi"><div class="n">'+list.length+'</div><small>مادة</small></div>'+
+  '<div class="kpi"><div class="n">'+tot.toLocaleString('en-US')+'</div><small>وحدة</small></div>'+
+  '<div class="kpi"><div class="n">'+cnt+'</div><small>جُردت اليوم</small></div>'+
+  (bad?'<div class="kpi"><div class="n" style="color:#9C0006">'+bad+'</div><small>تحتاج انتباهاً</small></div>':'')+
+  '</div>'+
+  '<p class="muted" style="margin-top:8px">آخر جرد قبل اليوم: '+(prevD||'—')+'</p>'+
+  '<div class="rowb" style="margin-top:8px"><button class="sec" style="flex:1" onclick="go(\'khmove\')">حركة اليوم</button></div></div>';
+ h+='<div class="card"><h2>المواد</h2><table><tr><th>المادة</th><th>الرصيد</th><th>النفاد</th></tr>'+
+  list.map(function(x){
+   var n=khQtyOn(x.kind,x.it.c,d); var q=(n===null?khPrev(x.kind,x.it.c,d):n);
+   var e=nearestExpiry(U,x.kind,x.it.c), st=statusOf(e);
+   return '<tr><td style="text-align:right">'+esc(x.it.n)+'</td><td><b>'+fq(q)+'</b></td>'+
+     '<td style="color:'+(st==='منتهي'?'#9C0006':st==='قريب النفاد'?'#8A6100':'#56688A')+'">'+(e||'—')+'</td></tr>';
+  }).join('')+'</table></div>';
+ return h;
+}
+
 function khSeeded(){return S.counts.some(function(c){return c.unit==='khafira'})}
 function khSeed(){
  if(khSeeded())return toast('الجرد الافتتاحي محمّل مسبقاً');
