@@ -122,6 +122,8 @@ var TASKS=[
 var DUTY={ 'P055':['jard'], 'P017':['order'] }; /* مصطفى فضل = الجرد · ريام علاء = الطلبية */
 var DEF={v:4,ids:{},moves:[],clinic:[],session:null,pw:{},shorts:[],notes:[],utasks:[],dutyTs:0,dutySynced:true,syncUrl:'',device:'',counts:[],orders:[],dones:[],addedItems:[],staff:STAFF,duty:DUTY,lastPull:0};
 var S=load(); if(!S.dutySwap)S.dutySwap={}; if(!S.clinic)S.clinic=[];
+/* إصلاح ٩ تشرين الثاني: سحب كامل مرة واحدة لاسترجاع ما فات كل جهاز من صفوف وصلت متأخرة */
+if((S.syncV||0)<2){S.lastPull=0;S.syncV=2;}
 var ME=null, LOGINERR='', REG='', SORTBY='idx', TAB='', KIND='drug', VIEW='mine', Q='', LINES=[], OTYPE='clin', SUNIT='', CUR=null;
 
 function load(){
@@ -285,13 +287,14 @@ function logout(){ME=null;TAB='';render()}
 function closeM(){document.getElementById('modal').classList.remove('show')}
 function openM(h){document.getElementById('sheet').innerHTML=h;document.getElementById('modal').classList.add('show')}
 function go(t){TAB=t;Q='';render();window.scrollTo(0,0)}
-function pill(){var p=document.getElementById('pill');var n=0;['counts','orders','dones','addedItems','shorts','notes','utasks','moves'].forEach(function(k){
+function pill(){var p=document.getElementById('pill');var n=0;['counts','orders','dones','addedItems','shorts','notes','utasks','moves','clinic'].forEach(function(k){
    n+=(S[k]||[]).filter(function(x){return !x.synced}).length});
  if((S.staff||[]).some(function(x){return x.synced===false}))n++;
  var base=(S.syncUrl||API)||''; if(base.indexOf('http')!==0){p.className='pill';p.textContent='محلي';return}
  if(!navigator.onLine){p.className='pill off';p.textContent='بلا نت · '+n;return}
+ if(S.needLogin&&ME){p.className='pill off';p.textContent='سجّل الدخول من جديد';return}
  p.className=n?'pill wait':'pill on';p.textContent=n?('بالانتظار '+n):'متزامن ✓'}
-function jsonp(params){
+function jsonp(params,ms){
  return new Promise(function(res,rej){
   var base=S.syncUrl||API; if(!base||base.indexOf('http')!==0)return rej(new Error('no-url'));
   var cb='cb'+Date.now().toString(36)+Math.floor(Math.random()*1000);
@@ -300,14 +303,28 @@ function jsonp(params){
   sc.onerror=function(){if(done)return;done=true;rej(new Error('net'));try{sc.remove()}catch(e){}};
   sc.src=base+(base.indexOf('?')>=0?'&':'?')+params+'&callback='+cb;
   document.head.appendChild(sc);
-  setTimeout(function(){if(!done){done=true;rej(new Error('timeout'))}},25000);
+  setTimeout(function(){if(!done){done=true;rej(new Error('timeout'))}},ms||25000);
  });
 }
 function postRows(payload){
  var base=S.syncUrl||API;
  return fetch(base,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});
 }
-async function sync(silent){
+/* رمز الدخول: يُجلب بصمت بكلمة السر المحفوظة على الجهاز — لا أحد يُطلب منه الدخول من جديد */
+async function ensureTok(force){
+ if(!S.session||!S.session.u)return '';
+ if(S.session.tok&&!force)return S.session.tok;
+ if(!force&&S.noTokUntil&&Date.now()<S.noTokUntil)return '';
+ var h=(S.pw||{})[S.session.u]; if(!h)return '';
+ try{
+  var j=await jsonp('action=login&u='+encodeURIComponent(S.session.u)+'&h='+h);
+  if(j&&j.ok&&j.tok){S.session.tok=j.tok;S.noTokUntil=0;S.needLogin=false;save();return j.tok}
+  if(j&&j.ok&&!j.tok){S.noTokUntil=Date.now()+600000;save();return ''}   /* خادم قديم لا يصدر رموزاً بعد */
+  if(j&&!j.ok){S.needLogin=true;save()}                                   /* كلمة السر تغيّرت أو الحساب أُوقف */
+ }catch(e){}
+ return '';
+}
+async function sync(silent,_retried){
  pill(); var base=(S.syncUrl||API)||''; if(base.indexOf('http')!==0||!navigator.onLine)return;
  var c=S.counts.filter(function(x){return !x.synced}),o=S.orders.filter(function(x){return !x.synced}),
      d=S.dones.filter(function(x){return !x.synced}),it=S.addedItems.filter(function(x){return !x.synced}),
@@ -321,12 +338,21 @@ async function sync(silent){
  if(ME&&ME.role==='admin'&&S.dutySwapSynced===false)dutyPush.push({k:'dutyswap',v:JSON.stringify(S.dutySwap||{}),ts:S.dutySwapTs||Date.now()});
  var pushed=(c.length||o.length||d.length||it.length||sr.length||nt.length||ut2.length||st.length||dutyPush.length||mv.length||cl.length);
  try{
+  var tok=await ensureTok();
   if(pushed){
-   await postRows({action:'push',device:S.device,counts:c,orders:o.map(flat),dones:d,items:it,
+   await postRows({action:'push',tok:tok,device:S.device,counts:c,orders:o.map(flat),dones:d,items:it,
      shorts:sr,notes:nt,utasks:ut2,staff:st.map(flatStaff),settings:dutyPush,moves:mv,clinic:cl.map(flat)});
   }
   var wantStaff=(ME&&(ME.role==='admin'||ME.role==='tech'))?'':'&staff=0&me='+encodeURIComponent(ME?ME.id:'');
-  var j2=await jsonp('action=pull&since='+(S.lastPull||0)+wantStaff);
+  var since=S.lastPull?Math.max(0,S.lastPull-600000):0;          /* تداخل ١٠ دقائق: لا يفوت صفّ وصل أثناء السحب */
+  var j2=await jsonp('action=pull&since='+since+wantStaff+'&tok='+encodeURIComponent(tok||''), since?25000:60000);
+  if(j2&&!j2.ok&&j2.error==='auth'){
+   if(S.session)S.session.tok='';
+   if(!_retried){var t2=await ensureTok(true); if(t2){return sync(silent,true)}}
+   S.needLogin=true;save();pill();
+   if(!silent)toast('انتهت صلاحية الدخول على هذا الجهاز — سجّل الدخول من جديد');
+   return;
+  }
   if(j2&&j2.ok){
    merge(S.counts,j2.counts);merge(S.dones,j2.dones);merge(S.addedItems,j2.items);
    S.addedItems.forEach(registerAdded);   /* أصناف الآخرين تدخل الفهرس عندنا أيضاً */
@@ -352,7 +378,7 @@ async function sync(silent){
    });
    if(j2.clinic&&j2.clinic.length)fixClinic();
    if(pushed)confirmPushed(j2,[c,o,d,it,sr,nt,ut2,st,mv,cl],dutyPush);
-   S.lastPull=j2.now||Date.now();
+   S.lastPull=j2.now||Date.now(); S.lastSyncAt=Date.now();
   }
   save();pill();if(!silent){toast('تمت المزامنة ✓');render()}
  }catch(e){pill();if(!silent)toast('تعذّرت المزامنة — تحقق من الإنترنت')}
@@ -424,6 +450,7 @@ function sha256(msg){
 function hashOf(u,p){return sha256(SALT+String(u).trim().toLowerCase()+':'+p)}
 
 /* ===== تسجيل الدخول ===== */
+var LOGINTOK='';
 async function doLogin(){
  var u=(document.getElementById('lu').value||'').trim().toLowerCase();
  var p=document.getElementById('lp').value||'';
@@ -433,13 +460,13 @@ async function doLogin(){
  if(!ok && navigator.onLine){
   try{
    var j=await jsonp('action=login&u='+encodeURIComponent(u)+'&h='+h);
-   if(j&&j.ok){ok=true;id=j.id;S.pw=S.pw||{};S.pw[u]=h;S.ids=S.ids||{};S.ids[u]=id;save()}
+   if(j&&j.ok){ok=true;id=j.id;S.pw=S.pw||{};S.pw[u]=h;S.ids=S.ids||{};S.ids[u]=id;LOGINTOK=j.tok||'';save()}
   }catch(e){LOGINERR='تعذّر الاتصال بالخادم — تحقق من الإنترنت';return render()}
  }
  if(!ok){LOGINERR=navigator.onLine?'اسم المستخدم أو كلمة السر غير صحيحة':'أول تسجيل دخول على هذا الجهاز يحتاج إنترنت';return render()}
  var person=ORG.users.find(function(x){return x.id===id});
  if(!person){LOGINERR='هذا الحساب غير مرتبط بموظف — راجع الإدارة';return render()}
- LOGINERR='';S.session={u:u,id:person.id,day:today()};save();ME=person;TAB='';sync(true);render();
+ LOGINERR='';S.session={u:u,id:person.id,day:today(),tok:LOGINTOK||''};LOGINTOK='';S.needLogin=false;save();ME=person;TAB='';sync(true);render();
 }
 function logout(){if(!confirm('تسجيل الخروج؟'))return;S.session=null;save();ME=null;TAB='';render()}
 function changePass(u){
@@ -2243,6 +2270,8 @@ function clinOrderV(){
  var dow=new Date().getDay();
  var h='<div class="card"><h2>طلبية اليوم — '+d+'</h2>'+
   '<p class="muted">مجموع كل جداول اليوم. انقلها إلى الطلبية الورقية للصيدلية الداخلية.</p>'+
+  '<div class="rowb" style="margin:4px 0 8px"><span class="sb" style="flex:1">آخر تحديث: '+(S.lastSyncAt?new Date(S.lastSyncAt).toLocaleTimeString('ar-IQ',{hour:'2-digit',minute:'2-digit'}):'—')+'</span>'+
+  '<button class="sec" style="font-size:12px;padding:6px 12px" onclick="sync(false)">⟳ تحديث الآن</button></div>'+
   '<div class="kpis"><div class="kpi"><div class="n">'+n+' / '+team+'</div><small>صيادلة أرسلوا</small></div>'+
   '<div class="kpi"><div class="n">'+rows.length+'</div><small>مريض</small></div>'+
   '<div class="kpi"><div class="n">'+cols.length+'</div><small>صنف</small></div></div>'+
