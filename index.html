@@ -120,10 +120,12 @@ var TASKS=[
  {id:'handover',unit:'khafira',title:'تسليم واستلام الخفارة',freq:'daily',duty:'any',note:true}
 ];
 var DUTY={ 'P055':['jard'], 'P017':['order'] }; /* مصطفى فضل = الجرد · ريام علاء = الطلبية */
-var DEF={v:4,ids:{},moves:[],clinic:[],session:null,pw:{},shorts:[],notes:[],utasks:[],dutyTs:0,dutySynced:true,syncUrl:'',device:'',counts:[],orders:[],dones:[],addedItems:[],staff:STAFF,duty:DUTY,lastPull:0};
+var DEF={v:4,ids:{},moves:[],clinic:[],pvcases:[],pvlog:[],session:null,pw:{},shorts:[],notes:[],utasks:[],dutyTs:0,dutySynced:true,syncUrl:'',device:'',counts:[],orders:[],dones:[],addedItems:[],staff:STAFF,duty:DUTY,lastPull:0};
 var S=load(); if(!S.dutySwap)S.dutySwap={}; if(!S.clinic)S.clinic=[];
 /* إصلاح ٩ تشرين الثاني: سحب كامل مرة واحدة لاسترجاع ما فات كل جهاز من صفوف وصلت متأخرة */
 if((S.syncV||0)<2){S.lastPull=0;S.syncV=2;}
+if(!S.pvcases)S.pvcases=[];
+if(!S.pvlog)S.pvlog=[];
 var ME=null, LOGINERR='', REG='', SORTBY='idx', TAB='', KIND='drug', VIEW='mine', Q='', LINES=[], OTYPE='clin', SUNIT='', CUR=null;
 
 function load(){
@@ -287,7 +289,7 @@ function logout(){ME=null;TAB='';render()}
 function closeM(){document.getElementById('modal').classList.remove('show')}
 function openM(h){document.getElementById('sheet').innerHTML=h;document.getElementById('modal').classList.add('show')}
 function go(t){TAB=t;Q='';render();window.scrollTo(0,0)}
-function pill(){var p=document.getElementById('pill');var n=0;['counts','orders','dones','addedItems','shorts','notes','utasks','moves','clinic'].forEach(function(k){
+function pill(){var p=document.getElementById('pill');var n=0;['counts','orders','dones','addedItems','shorts','notes','utasks','moves','clinic','pvcases','pvlog'].forEach(function(k){
    n+=(S[k]||[]).filter(function(x){return !x.synced}).length});
  if((S.staff||[]).some(function(x){return x.synced===false}))n++;
  var base=(S.syncUrl||API)||''; if(base.indexOf('http')!==0){p.className='pill';p.textContent='محلي';return}
@@ -332,16 +334,18 @@ async function sync(silent,_retried){
      ut2=S.utasks.filter(function(x){return !x.synced}),
      mv=(S.moves||[]).filter(function(x){return !x.synced}),
      cl=(S.clinic||[]).filter(function(x){return !x.synced}),
+     pv=(S.pvcases||[]).filter(function(x){return !x.synced}),
+     pl=(S.pvlog||[]).filter(function(x){return !x.synced}),
      st=(ME&&ME.role==='admin')?S.staff.filter(function(x){return x.synced===false}):[];
  var dutyPush=[];
  if(ME&&ME.role==='admin'&&S.dutySynced===false)dutyPush.push({k:'duty',v:JSON.stringify(S.duty),ts:S.dutyTs||Date.now()});
  if(ME&&ME.role==='admin'&&S.dutySwapSynced===false)dutyPush.push({k:'dutyswap',v:JSON.stringify(S.dutySwap||{}),ts:S.dutySwapTs||Date.now()});
- var pushed=(c.length||o.length||d.length||it.length||sr.length||nt.length||ut2.length||st.length||dutyPush.length||mv.length||cl.length);
+ var pushed=(c.length||o.length||d.length||it.length||sr.length||nt.length||ut2.length||st.length||dutyPush.length||mv.length||cl.length||pv.length||pl.length);
  try{
   var tok=await ensureTok();
   if(pushed){
    await postRows({action:'push',tok:tok,device:S.device,counts:c,orders:o.map(flat),dones:d,items:it,
-     shorts:sr,notes:nt,utasks:ut2,staff:st.map(flatStaff),settings:dutyPush,moves:mv,clinic:cl.map(flat)});
+     shorts:sr,notes:nt,utasks:ut2,staff:st.map(flatStaff),settings:dutyPush,moves:mv,clinic:cl.map(flat),pvcases:pv,pvlog:pl.map(pvFlat)});
   }
   var wantStaff=(ME&&(ME.role==='admin'||ME.role==='tech'))?'':'&staff=0&me='+encodeURIComponent(ME?ME.id:'');
   var since=S.lastPull?Math.max(0,S.lastPull-600000):0;          /* تداخل ١٠ دقائق: لا يفوت صفّ وصل أثناء السحب */
@@ -377,7 +381,8 @@ async function sync(silent,_retried){
      if(Number(x.ts||0)>=Number(cur.ts||0)){layer(cur,x);cur.synced=true}
    });
    if(j2.clinic&&j2.clinic.length)fixClinic();
-   if(pushed)confirmPushed(j2,[c,o,d,it,sr,nt,ut2,st,mv,cl],dutyPush);
+   merge(S.pvcases,j2.pvcases);merge(S.pvlog,j2.pvlog);
+   if(pushed)confirmPushed(j2,[c,o,d,it,sr,nt,ut2,st,mv,cl,pv,pl],dutyPush);
    S.lastPull=j2.now||Date.now(); S.lastSyncAt=Date.now();
   }
   save();pill();if(!silent){toast('تمت المزامنة ✓');render()}
@@ -385,13 +390,14 @@ async function sync(silent,_retried){
 }
 function confirmPushed(j2,groups,dutyPush){
  var seen={};
- ['counts','orders','dones','items','shorts','notes','utasks','staff','moves','clinic'].forEach(function(k){
+ ['counts','orders','dones','items','shorts','notes','utasks','staff','moves','clinic','pvcases','pvlog'].forEach(function(k){
   (j2[k]||[]).forEach(function(r){if(r&&r.id)seen[r.id]=1;if(r&&r.c)seen[r.c]=1})});
  groups.forEach(function(a){a.forEach(function(x){if(seen[x.id]||seen[x.c])x.synced=true})});
  dutyPush.forEach(function(p){
   if((j2.settings||[]).some(function(x){return x.k===p.k&&Number(x.ts)>=Number(p.ts)})){
    if(p.k==='duty')S.dutySynced=true; else S.dutySwapSynced=true;}});
 }
+function pvFlat(o){var x=Object.assign({},o);if(typeof x.data!=='string')x.data=JSON.stringify(x.data||{});return x}
 function flat(o){var x=Object.assign({},o);x.lines=JSON.stringify(o.lines||[]);return x}
 function flatStaff(p){var x=Object.assign({},p);x.extra=JSON.stringify(p.extra||[]);return x}
 function mergeStaff(rows){
@@ -487,20 +493,22 @@ function render(){
  var tabs = ME.role==='tech'
    ? [['tdash','لوحتي','◧'],['inv','المخزون','▦'],['send','إرسال مهمة','✎'],['units','الوحدات','▦'],['me','ملفي','☺']]
    : ME.role==='admin'
-   ? [['dash','اللوحة','◧'],['inv','المخزون','▦'],['units','الوحدات','▦'],['staff','الكادر','☰'],['me','ملفي','☺'],['data','البيانات','⚙']]
+   ? [['dash','اللوحة','◧'],['inv','المخزون','▦'],['units','الوحدات','▦'],['staff','الكادر','☰'],['pv','اليقظة','✚'],['me','ملفي','☺'],['data','البيانات','⚙']]
    : (isClinic(ME.unit)?[['today','اليوم','☑']]
       : isFlat(ME.unit)?[['today','اليوم','☑'],['jard','الجرد','▦'],['khmove','الحركة','⇄'],['order','الطلبية','✎']]
      : [['today','اليوم','☑'],['jard','الجرد','▦'],['order','الطلبية','✎']])
      .concat(ME.unit==='mathkar'?[['orders_in','طلبيات الوحدات','⇄'],['short','شحيح ومفقود','▤']]:[])
      .concat(isClinic(ME.unit)?[['chart','جدول الجولة','☰'],['clinorder','طلبية اليوم','⇄'],['charch','الأرشيف','▤']]:[])
+     .concat(canPV()?[['pv','اليقظة','✚']]:[])
      .concat([['unit','وحدتي','◧'],['me','ملفي','☺']]);
  var allowed=tabs.map(function(x){return x[0]});
  if(allowed.indexOf('jard')>=0)allowed.push('quick');   /* شاشة الإدخال السريع تابعة للجرد */
+ if(allowed.indexOf('pv')>=0)allowed.push('pvc');   /* صفحة المريض تابعة لليقظة */
  if(canSeeDuty())allowed.push('duty');
  if(canSeeDuty())allowed.push('short');   /* موقف الشحيح يُفتح من شاشة المذخر */                  /* الخفارة تُفتح من اللوحة لا من الشريط */
  if(!TAB||allowed.indexOf(TAB)<0)TAB=allowed[0];   /* لا يفتح أحد شاشة ليست له */
- nav.innerHTML=tabs.map(function(t){return '<button class="'+(TAB===t[0]?'act':'')+'" onclick="go(\''+t[0]+'\')"><i>'+t[2]+'</i>'+t[1]+'</button>'}).join('');
- app.innerHTML = TAB==='chart'?chartV():TAB==='charch'?archV():TAB==='clinorder'?clinOrderV():TAB==='duty'?dutyV():TAB==='quick'?quickV():TAB==='inv'?ledgerV():TAB==='orders_in'?ordersInV():TAB==='me'?meV():TAB==='khmove'?khmoveV():TAB==='jard'&&isFlat(ME.unit)?khV():TAB==='jard'&&hasRegs(ME.unit)?ledgerV():TAB==='tdash'?tdashV():TAB==='send'?sendV():TAB==='dir'?dirV():TAB==='view'?viewV()
+ nav.innerHTML=tabs.map(function(t){return '<button class="'+(TAB===t[0]||(TAB==='pvc'&&t[0]==='pv')?'act':'')+'" onclick="go(\''+t[0]+'\')"><i>'+t[2]+'</i>'+t[1]+'</button>'}).join('');
+ app.innerHTML = TAB==='pv'?pvV():TAB==='pvc'?pvCaseV():TAB==='chart'?chartV():TAB==='charch'?archV():TAB==='clinorder'?clinOrderV():TAB==='duty'?dutyV():TAB==='quick'?quickV():TAB==='inv'?ledgerV():TAB==='orders_in'?ordersInV():TAB==='me'?meV():TAB==='khmove'?khmoveV():TAB==='jard'&&isFlat(ME.unit)?khV():TAB==='jard'&&hasRegs(ME.unit)?ledgerV():TAB==='tdash'?tdashV():TAB==='send'?sendV():TAB==='dir'?dirV():TAB==='view'?viewV()
   :TAB==='today'?todayV():TAB==='jard'?jardV():TAB==='order'?orderV():TAB==='short'?shortV():TAB==='unit'?unitV(ME.unit)
   :TAB==='dash'?dashV():TAB==='units'?unitsV():TAB==='staff'?staffV():dataV();
 }
@@ -2219,6 +2227,469 @@ function khPrint(){
   '</table><div class="sig"><div>التوقيع</div><div>الختم</div><div>مسؤول الشعبة</div></div>';
  document.body.classList.add('prt');
  var clear=function(){document.body.classList.remove('prt');box.innerHTML=''};
+ try{window.onafterprint=function(){clear();window.onafterprint=null}}catch(e){}
+ setTimeout(function(){try{window.print()}catch(e){toast('تعذّرت الطباعة')}setTimeout(clear,4000)},120);
+}
+/* ===================== اليقظة الدوائية — زهراء عمار · صفا فيصل ===================== */
+/* الحالات الخطيرة فقط. كل ما تحتاجه الصيدلانية جاهز في الصفحة: الخطر · ماذا تسأل الممرض · ماذا تقترح على الطبيب · المصدر */
+var PV_IDS=['P019','P026'];
+function canPV(){return !!ME&&(PV_IDS.indexOf(ME.id)>=0||ME.role==='admin')}
+var PV_GEN_FIX={'DRG-040':'chlorphenamine','DRG-056':'chlorphenamine','CHT-IMIPRAMINE':'imipramine'};
+var PV_GC={};
+function pvGen(code,name){
+ var k=code+'|'+name; if(PV_GC[k]!=null)return PV_GC[k];
+ var g=PV_GEN_FIX[code];
+ if(!g){var it=CATALOG.drugs.find(function(i){return i.c===code});
+  g=String(it&&it.s||name||'').toLowerCase().replace(/\(.*?\)/g,'').trim()}
+ return PV_GC[k]=g;
+}
+var PV_BZD=['diazepam','lorazepam','chlordiazepoxide','clonazepam','midazolam'];
+var PV_GABA=['gabapentin','pregabalin'];
+var PV_SSRI=['fluoxetine','escitalopram'];
+var PV_TCA=['amitriptyline','imipramine'];
+var PV_NSAID=['ibuprofen','diclofenac','meloxicam','ketorolac','acetylsalicylic'];
+var PV_QT=['haloperidol','chlorpromazine','escitalopram','azithromycin','amitriptyline','imipramine','ciprofloxacin'];
+var PV_ACH=['procyclidine','amitriptyline','imipramine','chlorpromazine','olanzapine','hyoscine','chlorphenamine','clidinium'];
+var PV_ALG=['DRG-056','DRG-050','DRG-053','DRG-086'];   /* Allermine · Hydrocortisone · Dexamethasone · Adrenaline — حقن */
+var PV_RULES={
+ THI:{t:'ليبريوم بدون ثيامين',s:'خطر اعتلال فيرنيكه',
+  risk:'مريض سحب كحول على Librium ولم يأخذ Thiamine في أي يوم مسجّل. نقص الثيامين قد يسبب اعتلال فيرنيكه: تشوّش، ترنّح، اضطراب حركة العين — وقد يصبح دائماً.',
+  doc:'إضافة Thiamine (الأمبولة متوفرة) حسب بروتوكول سحب الكحول، وإعطاؤه قبل أي محلول سكري.',
+  ref:'NICE CG100 — سحب الكحول',q:'WER',lab:[]},
+ SED:{t:'مهدّئات مجتمعة',s:'خطر تثبيط التنفّس',
+  risk:'Gabapentin أو Pregabalin مع بنزوديازيبين أو Tramadol، أو بنزوديازيبين مع Tramadol. الجمع يزيد النعاس الشديد وقد يُبطئ التنفّس أو يوقفه.',
+  doc:'مراجعة الحاجة إلى الدوائين معاً، أو أقل جرعة فعّالة، مع مراقبة الوعي وعدد الأنفاس.',
+  ref:'FDA 2019 (Gabapentinoids) · FDA 2016 تحذير الصندوق الأسود (أفيونات + بنزوديازيبين)',q:'SED',lab:[]},
+ SER:{t:'خطر متلازمة السيروتونين',s:'سيروتونين / تشنّج',
+  risk:'Tramadol مع مضاد اكتئاب، أو مضادّا اكتئاب SSRI معاً، أو Fluoxetine مع Amitriptyline/Imipramine. قد يسبب متلازمة السيروتونين (حرارة، رجفة، تعرّق، تشنّج عضلي، هياج) أو نوبات صرع.',
+  doc:'استبدال Tramadol بمسكّن غير أفيوني (Paracetamol)، أو إيقاف أحد مضادّي الاكتئاب.',
+  ref:'نشرة Tramadol (FDA) · نشرة Fluoxetine (FDA)',q:'SER',lab:[]},
+ NTX:{t:'نالتريكسون مع ترامادول',s:'انسحاب / مسكّن بلا مفعول',
+  risk:'Naltrexone يحجب مفعول Tramadol، وقد يُطلق أعراض انسحاب أفيوني حادّة.',
+  doc:'إيقاف Tramadol واستعمال مسكّن غير أفيوني.',
+  ref:'نشرة Naltrexone (FDA)',q:'NTX',lab:[]},
+ QT:{t:'دواءان يطيلان QT',s:'خطر اضطراب نظم القلب',
+  risk:'دواءان أو أكثر يطيلان فترة QT (Haloperidol · Largactil · Escitalopram · Azithromycin · Amitriptyline · Imipramine · Ciprofloxacin). قد يسبب اضطراب نظم خطيراً (Torsades) وإغماءً.',
+  doc:'تخطيط قلب ECG وفحص K. إن كان QTc أكثر من 500 ms: إيقاف أحد الدوائين.',
+  ref:'نشرات الأدوية (FDA) — تحذير QT',q:'QT',lab:['ECG','K']},
+ BLD:{t:'مسكّن مع SSRI بلا حماية للمعدة',s:'خطر نزف معدي',
+  risk:'مسكّن (Ibuprofen · Mobic · Voltarin · Aspirin) مع Fluoxetine أو Escitalopram، والمريض لا يأخذ Omeprazole. الجمع يزيد خطر النزف من المعدة.',
+  doc:'إضافة Omeprazole 20 mg، أو استبدال المسكّن بـ Paracetamol.',
+  ref:'BNF — تداخل SSRI مع NSAID',q:'GIB',lab:['CBC']},
+ ACH:{t:'ثلاثة أدوية مضادة للكولين',s:'انسداد أمعاء · احتباس بول · هذيان',
+  risk:'ثلاثة أدوية أو أكثر من: Olanzapine · Kemadrin · Histidine · Largactil · Tryptizole · Imipramine · Buscopan · Librium (Clidinium). العبء العالي قد يسبب انسداد أمعاء واحتباس بول وهذياناً.',
+  doc:'مراجعة الحاجة إلى كل دواء — خاصة Kemadrin و Histidine — وإضافة ملين إن لزم.',
+  ref:'مقياس العبء المضاد للكولين (ACB)',q:'ACH',lab:[]},
+ ALG:{t:'حقنة حساسية بعد دواء جديد',s:'احتمال تفاعل تحسسي',
+  risk:'المريض أخذ حقنة Allermine أو Hydrocortisone أو Dexamethasone أو Adrenaline، وبدأ دواءً جديداً خلال الأيام السبعة السابقة. قد يكون تفاعلاً تحسسياً من الدواء الجديد.',
+  doc:'التأكد من سبب الحقنة. إن كانت حساسية: إيقاف الدواء المشتبه وتوثيقه في ملف المريض، وإعداد تقرير PV.',
+  ref:'أداة المحفّزات — IHI Global Trigger Tool',q:'ALG',lab:[]}
+};
+/* أسئلة الممرض — مرقّمة ليُحفظ جوابها. yn: نعم = علامة خطر · num/txt: قيمة */
+var PV_QS={
+ WER:[{id:'WER1',t:'هل ظهر عليه ارتباك أو تشوّش جديد؟'},{id:'WER2',t:'هل يترنّح عند المشي أو يفقد توازنه؟'},{id:'WER3',t:'هل لاحظتم حركة غير طبيعية في العينين أو يرى الأشياء مزدوجة؟'}],
+ SED:[{id:'SED1',t:'هل يصعب إيقاظه أو ينام معظم النهار؟'},{id:'SED2',t:'هل شفتاه زرقاوان أو تنفّسه ضعيف؟'},{id:'SED3',t:'هل سقط أو يترنّح عند المشي؟'}],
+ SER:[{id:'SER1',t:'هل لديه حرارة أو تعرّق شديد؟'},{id:'SER2',t:'هل لديه رجفة أو ارتعاش عضلي أو تشنّج؟'},{id:'SER3',t:'هل هو هائج أو مضطرب على غير عادته؟'},{id:'SER4',t:'هل حدثت نوبة صرع؟'}],
+ NTX:[{id:'NTX1',t:'هل لديه تعرّق أو تثاؤب أو سيلان أنف؟'},{id:'NTX2',t:'هل لديه إسهال أو تقيّؤ أو ألم عضلي؟'},{id:'NTX3',t:'هل هو هائج أو قلق على غير عادته؟'},{id:'NTX4',t:'هل ما زال يشكو من الألم رغم المسكّن؟'}],
+ QT:[{id:'QT1',t:'هل أُغمي عليه أو كاد؟'},{id:'QT2',t:'هل يشكو من خفقان أو دقّات قلب سريعة؟'},{id:'QT3',t:'هل يدوخ عند الوقوف؟'}],
+ GIB:[{id:'GIB1',t:'هل لاحظتم براز أسود أو داكن؟'},{id:'GIB2',t:'هل تقيّأ دماً أو شيئاً يشبه القهوة؟'},{id:'GIB3',t:'هل يشكو من ألم في المعدة؟'},{id:'GIB4',t:'هل يبدو شاحباً أو يدوخ عند الوقوف؟'}],
+ ACH:[{id:'ACH1',t:'كم يوماً مضى على آخر تبرّز؟',k:'num',u:'يوم',bad:function(v){return v>=3}},{id:'ACH2',t:'هل بطنه منتفخ أو يتقيّأ؟'},{id:'ACH3',t:'هل يجد صعوبة في التبوّل أو لا يفرغ مثانته؟'},{id:'ACH4',t:'هل ظهر عليه ارتباك جديد؟'}],
+ ALG:[{id:'ALG1',t:'لماذا أُعطيت الحقنة؟',k:'txt'},{id:'ALG2',t:'هل ظهر طفح جلدي أو حكّة أو احمرار؟'},{id:'ALG3',t:'هل حدث تورّم في الوجه أو الشفتين أو صعوبة في التنفّس؟'},{id:'ALG4',t:'متى بدأت الأعراض؟ بعد أي دواء؟',k:'txt'}],
+ GEN:[{id:'GEN1',t:'هل ظهر عرض جديد منذ آخر متابعة؟'},{id:'GEN2',t:'صف العرض',k:'txt'}]
+};
+var PV_QIDX={}; Object.keys(PV_QS).forEach(function(s){PV_QS[s].forEach(function(q){PV_QIDX[q.id]=q})});
+/* العلامات الحيوية والفحوص — حدود تقريبية للبالغين: bad = خطير، warn = خارج الطبيعي */
+var PV_VIT=[{id:'bp',t:'الضغط',ph:'120/80'},{id:'pulse',t:'النبض',u:'/د'},{id:'temp',t:'الحرارة',u:'°م'},{id:'rr',t:'التنفّس',u:'/د'}];
+var PV_LAB=[{id:'hb',t:'Hb',u:'g/dL'},{id:'wbc',t:'WBC',u:'×10³'},{id:'plt',t:'PLT',u:'×10³'},{id:'na',t:'Na',u:'mmol/L'},{id:'k',t:'K',u:'mmol/L'},
+ {id:'glu',t:'Glucose',u:'mg/dL'},{id:'alt',t:'ALT',u:'U/L'},{id:'ast',t:'AST',u:'U/L'},{id:'qtc',t:'QTc',u:'ms'}];
+var PV_LIM={pulse:[50,null,100,120],temp:[null,null,37.8,38.5],rr:[12,null,20,25],hb:[8,10,null,null],wbc:[3,4,11,null],plt:[50,150,null,null],
+ na:[125,135,145,155],k:[3,3.5,5,5.5],glu:[70,null,200,400],alt:[null,null,40,120],ast:[null,null,40,120],qtc:[null,null,470,500]};
+/* [خطير أقل من، منخفض أقل من، مرتفع أكثر من، خطير أكثر من] */
+function pvRange(id,v){
+ var n=parseFloat(v); if(!isFinite(n))return '';
+ if(id==='bp'){var m=String(v).match(/(\d{2,3})\s*\/\s*(\d{2,3})/);if(!m)return '';var s=+m[1];return (s<90||s>=180)?'bad':(s>=140?'warn':'')}
+ var L=PV_LIM[id]; if(!L)return '';
+ if(L[0]!=null&&n<L[0])return 'bad'; if(L[3]!=null&&n>L[3])return 'bad';
+ if(L[1]!=null&&n<L[1])return 'warn'; if(L[2]!=null&&n>L[2])return 'warn';
+ return '';
+}
+/* ما يحتاجه كل خطر من فحص ← حقول الإدخال */
+var PV_LABMAP={ECG:['qtc'],K:['k'],CBC:['hb','wbc','plt'],Na:['na'],LFT:['alt','ast']};
+var PV_DOCACT=['أوقف الدواء','خفّض الجرعة','أضاف دواء','استبدل الدواء','لا تغيير — يستمر بالمراقبة','أخرى'];
+var PV_ADRSER=['لا','نعم — يهدد الحياة','نعم — دخول أو إطالة رقود','نعم — عجز أو إعاقة','نعم — وفاة','نعم — حدث طبي مهم'];
+var PV_ADRACT=['أُوقف الدواء','خُفّضت الجرعة','لم يتغيّر','غير معروف'];
+var PV_ADROUT=['تعافى','يتعافى','لم يتعافَ','تعافى مع مضاعفات','وفاة','غير معروف'];
+var PV_DONE=['تمت المتابعة','تقرير PV'], PV_ST=['تمت المتابعة','يحتاج متابعة','أُبلغ الطبيب','تقرير PV'];
+var PV_FIL='', PV_CUR='', PV_DAYS=7, PV_KEEP=30, PV_SHOWDONE=false, PV_FORM='', PV_SR=[];
+function pvKey(name){return norm8(String(name||'').trim())}
+function pvDayN(a,b){if(!a||!b)return 0;return Math.round((Date.parse(b)-Date.parse(a))/864e5)}
+/* ملف كل مريض من جداول الجولة: أدوية آخر يوم، أدوية كل يوم، وتاريخ أول ظهور لكل دواء */
+function pvPatients(){
+ var P={};
+ (S.clinic||[]).forEach(function(r){
+  if(!isClinic(r.unit)||!r.patient)return;
+  var k=pvKey(r.patient), d=dkey(r.date); if(!k||!/^\d{4}-\d{2}-\d{2}$/.test(d))return;
+  var p=P[k]=P[k]||{key:k,name:String(r.patient).trim(),last:'',days:{},first:{},meds:{},by:{},lc:{},nm:{},dm:{}};
+  p.days[d]=1; p.dm[d]=p.dm[d]||{};
+  if(d>p.last){p.last=d;p.meds={};p.by={};p.name=String(r.patient).trim()}
+  (Array.isArray(r.lines)?r.lines:[]).forEach(function(l){
+   if(!(r5(l.qty)>0))return;
+   var g=pvGen(l.code,l.name); if(!g)return;
+   if(!p.first[g]||d<p.first[g])p.first[g]=d;
+   if(!p.lc[l.code]||d>p.lc[l.code])p.lc[l.code]=d;
+   if(!p.nm[g])p.nm[g]=l.name;
+   p.dm[d][g]=l.name;
+   if(d===p.last){var mk=l.code+'|'+l.name,ex=p.meds[mk];p.meds[mk]={code:l.code,name:l.name,qty:r5(l.qty)+(ex?ex.qty:0),g:g}}
+  });
+  if(d===p.last&&r.user)p.by[r.user]=1;
+ });
+ return P;
+}
+/* حقنة حساسية خلال آخر ٣ أيام، لم تُعطَ في أول يوم للمريض → الأدوية التي بدأت خلال ٧ أيام قبلها هي المشتبهة */
+function pvAlgDate(p){
+ var d0=Object.keys(p.days).sort()[0], t='';
+ PV_ALG.forEach(function(c){var d=p.lc[c];if(d&&d>d0&&pvDayN(d,p.last)<=3&&d>t)t=d});
+ return t;
+}
+function pvSuspects(p){
+ var t=pvAlgDate(p); if(!t)return [];
+ var alg={}; PV_ALG.forEach(function(c){var it=CATALOG.drugs.find(function(i){return i.c===c});if(it)alg[pvGen(c,it.n)]=1});
+ var d0=Object.keys(p.days).sort()[0];
+ return Object.keys(p.first).filter(function(g){return !alg[g]&&p.first[g]<=t&&pvDayN(p.first[g],t)<=7&&p.first[g]>d0})
+  .map(function(g){return {g:g,name:p.nm[g]||g}});
+}
+function pvFindings(p){
+ var gs=Object.keys(p.meds).map(function(k){return p.meds[k].g});
+ var has=function(x){return gs.some(function(g){return g.indexOf(x)>=0})};
+ var nOf=function(L){return L.filter(has).length};
+ var ever=function(x){return Object.keys(p.first).some(function(g){return g.indexOf(x)>=0})};
+ var bzd=nOf(PV_BZD)>0, gab=nOf(PV_GABA)>0, tra=has('tramadol');
+ var f=[];
+ if(has('chlordiazepoxide')&&!ever('thiamine'))f.push('THI');
+ if((gab&&(bzd||tra))||(bzd&&tra))f.push('SED');
+ if((tra&&(nOf(PV_SSRI)+nOf(PV_TCA)+(has('mirtazapine')?1:0))>0)||nOf(PV_SSRI)>=2||(has('fluoxetine')&&nOf(PV_TCA)>0))f.push('SER');
+ if(tra&&has('naltrexone'))f.push('NTX');
+ if(nOf(PV_QT)>=2)f.push('QT');
+ if(nOf(PV_NSAID)>0&&nOf(PV_SSRI)>0&&!has('omeprazole')&&!has('esomeprazole'))f.push('BLD');
+ if(nOf(PV_ACH)>=3)f.push('ACH');
+ if(pvSuspects(p).length)f.push('ALG');
+ return f;
+}
+function pvCase(key){return (S.pvcases||[]).find(function(c){return c.pkey===key})}
+/* ===== سجل المتابعة — كل إدخال سطر مستقل (ممرض · فحص · طبيب · أثر جانبي) ===== */
+var PV_DC={};
+function pvData(e){var raw=typeof e.data==='string'?e.data:JSON.stringify(e.data||{}),k=e.id+'|'+raw;if(PV_DC[k])return PV_DC[k];var d;try{d=JSON.parse(raw||'{}')}catch(x){d={}}if(!d||typeof d!=='object')d={};return PV_DC[k]=d}
+function pvLog(key){return (S.pvlog||[]).filter(function(e){return e.pkey===key&&e.del!=='نعم'}).sort(function(a,b){return (a.ts||0)-(b.ts||0)})}
+/* علامات كل إدخال: [{t,s:'bad'|'warn'}] */
+function pvFlags(e){
+ var d=pvData(e), out=[];
+ if(e.kind==='nurse'){
+  PV_VIT.forEach(function(v){var x=(d.v||{})[v.id];if(x===''||x==null)return;var r=pvRange(v.id,x);if(r)out.push({t:v.t+' '+x,s:r})});
+  Object.keys(d.a||{}).forEach(function(id){var q=PV_QIDX[id],x=d.a[id];if(!q||x===''||x==null)return;
+   if(q.k==='num'){if(q.bad&&q.bad(parseFloat(x)))out.push({t:q.t+' '+x+(q.u?' '+q.u:''),s:'bad'})}
+   else if(!q.k&&x==='نعم')out.push({t:q.t.replace(/^هل /,'').replace(/؟$/,''),s:'bad'})});
+ } else if(e.kind==='lab'){
+  PV_LAB.forEach(function(l){var x=d[l.id];if(x===''||x==null)return;var r=pvRange(l.id,x);if(r)out.push({t:l.t+' '+x,s:r})});
+ } else if(e.kind==='adr'){
+  out.push({t:'أثر جانبي: '+(d.what||''),s:(d.ser&&d.ser!=='لا')?'bad':'warn'});
+ }
+ return out;
+}
+/* حالة الملف وما الخطوة التالية — يحسبها التطبيق من الأدوية والسجل */
+function pvState(p,log){
+ log=log||pvLog(p.key);
+ var since=new Date(Date.parse(p.last||today())-14*864e5).toISOString().slice(0,10);
+ var recent=log.filter(function(e){return dkey(e.date)>=since});
+ /* ما بعد آخر قرار للطبيب فقط — بترتيب الإدخال */
+ var lastDoc=-1; recent.forEach(function(e,i){if(e.kind==='doc')lastDoc=i});
+ var urgent=[]; recent.forEach(function(e,i){if((e.kind==='nurse'||e.kind==='lab'||e.kind==='adr')&&i>lastDoc)
+  pvFlags(e).forEach(function(f){if(f.s==='bad')urgent.push(f.t)})});
+ var next=[], warn=[];
+ if(urgent.length)next.push('أبلغ الطبيب الآن — '+urgent.join(' · '));
+ var hasNurse=recent.some(function(e){return e.kind==='nurse'});
+ if(p.f.length&&!hasNurse)next.push('اطبع أسئلة الممرض، ثم أدخل الإجابات هنا');
+ var need={}; p.f.forEach(function(k){PV_RULES[k].lab.forEach(function(x){need[x]=1})});
+ var missing=Object.keys(need).filter(function(x){return !recent.some(function(e){if(e.kind!=='lab')return false;var d=pvData(e);
+  return (PV_LABMAP[x]||[]).some(function(id){return d[id]!==''&&d[id]!=null})})});
+ if(missing.length)next.push('بانتظار نتيجة: '+missing.join(' · '));
+ /* قرار الطبيب مقابل جدول الجولة */
+ var gsNow=Object.keys(p.meds).map(function(k){return p.meds[k].g});
+ recent.filter(function(e){return e.kind==='doc'}).forEach(function(e){var d=pvData(e);
+  if((d.act==='أوقف الدواء'||d.act==='استبدل الدواء')&&d.drug&&dkey(e.date)<p.last&&gsNow.indexOf(d.drug)>=0)
+   warn.push('قرار الطبيب ('+dkey(e.date)+'): '+d.act+' '+(p.nm[d.drug]||d.drug)+' — لكنه ما زال في جدول آخر جولة');
+  if((d.act==='أوقف الدواء'||d.act==='استبدل الدواء')&&d.drug&&gsNow.indexOf(d.drug)<0&&p.first[d.drug])
+   warn.push('✓ '+(p.nm[d.drug]||d.drug)+' أُوقف فعلاً في الجولة');
+ });
+ var adr=recent.filter(function(e){return e.kind==='adr'});
+ if(adr.length){var la=pvData(adr[adr.length-1]); if(['يتعافى','لم يتعافَ','غير معروف'].indexOf(la.out)>=0)next.push('أثر جانبي لم يُحسم — حدّث النتيجة، وأكمل تقرير VigiFlow');}
+ var st=urgent.length?'urgent':(next.length?'waiting':(recent.length||p.f.length?'stable':'new'));
+ if(st==='stable')next.push('لا شيء معلّق — يمكن اختيار «تمت المتابعة»');
+ return {st:st,urgent:urgent,next:next,warn:warn,log:log};
+}
+var PV_STL={urgent:['عاجل','#9C0006','#FCE4E4'],waiting:['بانتظار معلومات','#8A5300','#FFF1D6'],stable:['مستقر','#0B6B2E','#E3F4E8'],new:['جديد','#0C447C','#E6F1FB']};
+function pvBadge(st){var x=PV_STL[st];return '<span style="font-size:10.5px;padding:2px 8px;border-radius:20px;font-weight:700;background:'+x[2]+';color:'+x[1]+'">'+x[0]+'</span>'}
+/* الحالة تُعدّ منتهية إذا أُغلقت، ولم يظهر خطر جديد، ولا معلومة خطيرة بعد الإغلاق */
+function pvIsDone(p,c,S2){
+ if(!c||PV_DONE.indexOf(c.status)<0)return false;
+ if(S2&&S2.st==='urgent')return false;
+ var old=String(c.rules||'').split(',');
+ return p.f.every(function(k){return old.indexOf(k)>=0});
+}
+function pvList(){
+ var P=pvPatients(), t=today(), open=[], done=[], active=0;
+ Object.keys(P).forEach(function(k){var p=P[k], age=pvDayN(p.last,t);
+  if(age<=PV_DAYS)active++;
+  var c=pvCase(k), lg=pvLog(k);
+  if(age>((c||lg.length)?PV_KEEP:PV_DAYS))return;
+  p.f=pvFindings(p);
+  if(!p.f.length&&!c&&!lg.length)return;
+  p.status=c?c.status:''; p.S=pvState(p,lg);
+  (pvIsDone(p,c,p.S)?done:open).push(p);
+ });
+ var rank={urgent:0,waiting:1,new:2,stable:3};
+ var srt=function(a,b){return rank[a.S.st]-rank[b.S.st]||b.f.length-a.f.length||(a.name<b.name?-1:1)};
+ open.sort(srt); done.sort(srt);
+ return {list:open,done:done,active:active,P:P};
+}
+function pvChip(k){return '<span style="font-size:10.5px;padding:2px 7px;border-radius:20px;font-weight:600;background:#FCE4E4;color:#9C0006">'+PV_RULES[k].t+'</span>'}
+function pvVisible(L){L=L||pvList();return (PV_SHOWDONE?L.list.concat(L.done):L.list).filter(function(p){return !PV_FIL||p.f.indexOf(PV_FIL)>=0})}
+function pvOpen(i){var L=pvVisible();if(!L[i])return;PV_CUR=L[i].key;PV_FORM='';go('pvc')}
+function pvOpenS(i){if(!PV_SR[i])return;PV_CUR=PV_SR[i];PV_FORM='';go('pvc')}
+function pvFil(k){PV_FIL=(PV_FIL===k?'':k);render()}
+function pvToggleDone(){PV_SHOWDONE=!PV_SHOWDONE;render()}
+/* فتح ملف أي مريض في الجولة — لحالة لاحظتها الصيدلانية ولم يلتقطها التطبيق */
+function pvSearch(q){
+ var el=document.getElementById('pvsr'); if(!el)return;
+ var t=norm8(q); if(!t){el.innerHTML='';return}
+ var P=pvPatients(), now=today();
+ PV_SR=Object.keys(P).filter(function(k){return k.indexOf(t)>=0&&pvDayN(P[k].last,now)<=PV_KEEP}).slice(0,8);
+ el.innerHTML=PV_SR.length?PV_SR.map(function(k,i){return '<div class="item" style="cursor:pointer;padding:7px 9px" onclick="pvOpenS('+i+')"><b>'+esc(P[k].name)+'</b> <span class="sb">آخر جولة '+P[k].last+'</span></div>'}).join(''):'<p class="muted">لا يوجد مريض بهذا الاسم في الجولة.</p>';
+}
+function pvV(){
+ var L=pvList(), cnt={}, urg=L.list.filter(function(p){return p.S.st==='urgent'}).length;
+ L.list.forEach(function(p){p.f.forEach(function(k){cnt[k]=(cnt[k]||0)+1})});
+ var h='<div class="card"><h2>اليقظة الدوائية</h2><p class="muted">الحالات الخطيرة فقط، من جداول الجولة. لكل مريض ملف: أضف ما تحصلين عليه من الممرض والمختبر والطبيب، والتطبيق يتابع معك.</p>'+
+  '<div class="kpis"><div class="kpi"><div class="n" style="color:#9C0006">'+urg+'</div><small>عاجل</small></div>'+
+  '<div class="kpi"><div class="n">'+L.list.length+'</div><small>حالة مفتوحة</small></div>'+
+  '<div class="kpi"><div class="n" style="color:#0B6B2E">'+L.done.length+'</div><small>تمت متابعتها</small></div></div></div>';
+ var used=Object.keys(PV_RULES).filter(function(k){return cnt[k]});
+ if(used.length)h+='<div class="card"><h2>حسب الخطر</h2><div style="display:grid;grid-template-columns:1fr 1fr;gap:7px">'+used.map(function(k){var R=PV_RULES[k];
+  return '<div onclick="pvFil(\''+k+'\')" style="cursor:pointer;border:1px solid #DCE2EC;border-right:4px solid #C0392B;border-radius:10px;padding:8px 9px;'+(PV_FIL===k?'outline:2px solid #2E5C9E;':'')+'">'+
+   '<b style="float:left;font-size:18px;color:#C0392B">'+cnt[k]+'</b><b style="font-size:12.5px;display:block">'+R.t+'</b><span class="sb">'+R.s+'</span></div>'}).join('')+'</div>'+
+  '<p class="muted" style="margin:8px 0 0">اضغط خطراً للتصفية.</p></div>';
+ var list=pvVisible(L);
+ h+='<div class="card"><h2>الحالات'+(PV_FIL?' — '+PV_RULES[PV_FIL].t:'')+'</h2>'+(list.length?list.map(function(p,i){
+  var dn=L.done.indexOf(p)>=0, n=p.S.log.length;
+  return '<div class="item" style="cursor:pointer;'+(dn?'opacity:.6':'')+(p.S.st==='urgent'?'border:2px solid #C0392B':'')+'" onclick="pvOpen('+i+')"><div class="rowb">'+
+  '<div style="flex:1"><div class="nm">'+esc(p.name)+' '+pvBadge(dn?'stable':p.S.st)+'</div><div class="sb">آخر جولة '+p.last+(n?' · '+n+' إدخال في الملف':'')+
+  (p.status?' · <b style="color:#0B6B2E">'+esc(p.status)+'</b>':'')+'</div>'+
+  (p.S.st==='urgent'?'<div class="sb" style="color:#9C0006;font-weight:700;margin-top:3px">⚠ '+esc(p.S.urgent.slice(0,3).join(' · '))+'</div>':'')+
+  '<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px">'+(p.f.length?p.f.map(pvChip).join(''):'<span class="sb">ملف فتحته الصيدلانية</span>')+'</div></div><span class="sb">‹</span></div></div>'}).join('')
+  :'<p class="muted">لا توجد حالة مفتوحة ✓</p>')+
+  (L.done.length?'<button class="gh" style="width:100%;margin-top:6px;font-size:12px" onclick="pvToggleDone()">'+(PV_SHOWDONE?'إخفاء ما تمت متابعته':'عرض ما تمت متابعته ('+L.done.length+')')+'</button>':'')+'</div>';
+ h+='<div class="card"><h2>فتح ملف مريض</h2><p class="muted" style="margin-top:0">لحالة لاحظتِها بنفسك ولم يُظهرها التطبيق.</p><input placeholder="اكتب اسم المريض" oninput="pvSearch(this.value)"><div id="pvsr" style="margin-top:6px"></div></div>';
+ return h;
+}
+function pvGet(){var P=pvPatients(),p=P[PV_CUR];if(!p)return null;p.f=pvFindings(p);return p}
+function pvQset(p){var seen={},qs=[];(p.f.length?p.f:['GEN']).forEach(function(k){var q=k==='GEN'?'GEN':PV_RULES[k].q;if(seen[q])return;seen[q]=1;PV_QS[q].forEach(function(x){qs.push(x)})});
+ if(!seen.GEN)PV_QS.GEN.forEach(function(x){qs.push(x)});return qs}
+function pvQs(p){return pvQset(p).map(function(q){return q.t})}
+/* ---------- نماذج الإدخال ---------- */
+function pvFormOpen(k){PV_FORM=(PV_FORM===k?'':k);render();setTimeout(function(){var el=document.getElementById('pvform');if(el&&el.scrollIntoView)el.scrollIntoView({behavior:'smooth',block:'start'})},60)}
+function pvSel(id,opts,val){return '<select id="'+id+'"><option value=""></option>'+opts.map(function(o){var v=typeof o==='string'?o:o[0],t=typeof o==='string'?o:o[1];return '<option value="'+esc(v)+'"'+(val===v?' selected':'')+'>'+esc(t)+'</option>'}).join('')+'</select>'}
+function pvFormV(p){
+ if(!PV_FORM)return '';
+ var row=function(lbl,inp){return '<div style="margin-bottom:7px"><label style="font-size:12px">'+lbl+'</label>'+inp+'</div>'};
+ var g2='display:grid;grid-template-columns:1fr 1fr;gap:6px';
+ var h='<div class="card" id="pvform" style="border:2px solid #2E5C9E">';
+ if(PV_FORM==='nurse'){
+  h+='<h2>إجابات الممرض</h2><div style="'+g2+'">'+PV_VIT.map(function(v){return row(v.t+(v.u?' ('+v.u+')':''),'<input id="pvf_'+v.id+'" inputmode="'+(v.id==='bp'?'text':'decimal')+'" placeholder="'+(v.ph||'')+'">')}).join('')+'</div>'+
+   pvQset(p).map(function(q){return row(q.t,q.k==='txt'?'<input id="pvf_'+q.id+'">':q.k==='num'?'<input id="pvf_'+q.id+'" inputmode="decimal" placeholder="'+(q.u||'')+'">':pvSel('pvf_'+q.id,['نعم','لا'],''))}).join('')+
+   row('اسم الممرض','<input id="pvf_who">');
+ } else if(PV_FORM==='lab'){
+  h+='<h2>نتيجة فحص / تخطيط</h2><p class="sb" style="margin-top:0">املئي الموجود فقط واتركي الباقي فارغاً.</p><div style="'+g2+'">'+
+   PV_LAB.map(function(l){return row(l.t+' ('+l.u+')','<input id="pvf_'+l.id+'" inputmode="decimal">')}).join('')+'</div>'+row('تاريخ الفحص','<input id="pvf_ld" type="date" value="'+today()+'">');
+ } else if(PV_FORM==='doc'){
+  var md=Object.keys(p.first).map(function(g){return [g,p.nm[g]||g]});
+  h+='<h2>قرار الطبيب</h2>'+row('القرار',pvSel('pvf_act',PV_DOCACT,''))+row('الدواء',pvSel('pvf_drug',md,''))+row('اسم الطبيب','<input id="pvf_who">')+row('تفاصيل','<input id="pvf_note" placeholder="مثلاً: أضاف Omeprazole 20 mg">');
+ } else if(PV_FORM==='adr'){
+  var md2=Object.keys(p.first).map(function(g){return [g,p.nm[g]||g]});
+  var su=pvSuspects(p)[0];
+  h+='<h2>تسجيل أثر جانبي</h2><p class="sb" style="margin-top:0">الحقول نفسها التي يطلبها تقرير VigiFlow.</p>'+
+   row('ما الذي حدث؟','<input id="pvf_what" placeholder="مثلاً: طفح جلدي منتشر مع حكّة">')+
+   '<div style="'+g2+'">'+row('تاريخ البدء','<input id="pvf_on" type="date" value="'+today()+'">')+row('الدواء المشتبه',pvSel('pvf_drug',md2,su?su.g:''))+
+   row('العمر','<input id="pvf_age" inputmode="numeric">')+row('الجنس',pvSel('pvf_sex',['ذكر','أنثى'],''))+'</div>'+
+   row('هل هو خطير؟',pvSel('pvf_ser',PV_ADRSER,''))+'<div style="'+g2+'">'+row('ما الذي فُعل بالدواء؟',pvSel('pvf_act',PV_ADRACT,''))+row('النتيجة',pvSel('pvf_out',PV_ADROUT,''))+'</div>'+
+   row('ملاحظات','<input id="pvf_note">');
+ }
+ h+='<div class="rowb"><button class="ok" style="flex:1" onclick="pvSave(\''+PV_FORM+'\')">حفظ في الملف</button><button class="gh" onclick="pvFormOpen(\'\')">إلغاء</button></div></div>';
+ return h;
+}
+function pvVal(id){var el=document.getElementById('pvf_'+id);return el?String(el.value||'').trim().slice(0,300):''}
+function pvSave(kind){
+ var p=pvGet(); if(!p)return;
+ var d={}, any=false;
+ if(kind==='nurse'){d.v={};d.a={};
+  PV_VIT.forEach(function(v){var x=pvVal(v.id);if(x){d.v[v.id]=x;any=true}});
+  pvQset(p).forEach(function(q){var x=pvVal(q.id);if(x){d.a[q.id]=x;any=true}});
+  d.who=pvVal('who');
+ } else if(kind==='lab'){
+  PV_LAB.forEach(function(l){var x=pvVal(l.id);if(x){if(!isFinite(parseFloat(x)))return;d[l.id]=x;any=true}});
+  d.ld=pvVal('ld');
+ } else if(kind==='doc'){
+  d.act=pvVal('act');d.drug=pvVal('drug');d.who=pvVal('who');d.note=pvVal('note');any=!!(d.act||d.note);
+ } else if(kind==='adr'){
+  ['what','on','drug','age','sex','ser','act','out','note'].forEach(function(k){d[k]=pvVal(k)});
+  if(!d.what)return toast('اكتبي ما الذي حدث');
+  any=true;
+ }
+ if(!any)return toast('لم يُدخل شيء');
+ if(!S.pvlog)S.pvlog=[];
+ var date=(kind==='lab'&&/^\d{4}-\d{2}-\d{2}$/.test(d.ld))?d.ld:today();
+ S.pvlog.push({id:'pl-'+uid(),ts:Date.now(),date:date,unit:'saririya',user:ME.id,pkey:p.key,patient:p.name,kind:kind,data:JSON.stringify(d),del:'',synced:false});
+ if(!pvCase(p.key))pvUpsert({status:'يحتاج متابعة'});
+ save(); PV_FORM=''; sync(true); render();
+ var fl=pvFlags(S.pvlog[S.pvlog.length-1]).filter(function(f){return f.s==='bad'});
+ toast(fl.length?'⚠ حُفظ — فيه علامة خطر: أبلغي الطبيب':'حُفظ في الملف ✓');
+}
+function pvDel(id){
+ var e=(S.pvlog||[]).find(function(x){return x.id===id}); if(!e)return;
+ if(e.user!==ME.id&&ME.role!=='admin')return toast('يحذفه من أدخله فقط');
+ if(!confirm('حذف هذا الإدخال من الملف؟'))return;
+ e.del='نعم';e.ts=Date.now();e.synced=false;save();sync(true);render();
+}
+/* ---------- سجل الملف: الإدخالات + تغيّر الأدوية في الجولة ---------- */
+function pvEntryHtml(e){
+ var d=pvData(e), fl=pvFlags(e), body='', lbl={nurse:'الممرض',lab:'فحص',doc:'قرار الطبيب',adr:'أثر جانبي'}[e.kind]||e.kind;
+ var col=function(t,s){return '<span style="color:'+(s==='bad'?'#9C0006':s==='warn'?'#8A5300':'inherit')+';font-weight:'+(s?'700':'400')+'">'+esc(t)+'</span>'};
+ if(e.kind==='nurse'){
+  var vs=PV_VIT.filter(function(v){return (d.v||{})[v.id]}).map(function(v){return col(v.t+' '+d.v[v.id],pvRange(v.id,d.v[v.id]))});
+  var as=Object.keys(d.a||{}).map(function(id){var q=PV_QIDX[id];if(!q)return '';var x=d.a[id];
+   var s=q.k==='num'?(q.bad&&q.bad(parseFloat(x))?'bad':''):(!q.k&&x==='نعم'?'bad':'');
+   return (q.k||x==='نعم')?col(q.t.replace(/^هل /,'').replace(/؟$/,'')+': '+x,s):''}).filter(Boolean);
+  var no=Object.keys(d.a||{}).filter(function(id){return d.a[id]==='لا'}).length;
+  body=vs.join(' · ')+(vs.length&&as.length?'<br>':'')+as.join('<br>')+(no?'<br><span class="sb">'+no+' إجابة «لا»</span>':'')+(d.who?'<br><span class="sb">الممرض: '+esc(d.who)+'</span>':'');
+ } else if(e.kind==='lab'){
+  body=PV_LAB.filter(function(l){return d[l.id]}).map(function(l){return col(l.t+' '+d[l.id],pvRange(l.id,d[l.id]))}).join(' · ');
+ } else if(e.kind==='doc'){
+  body='<b>'+esc(d.act||'')+'</b> '+esc(d.drug||'')+(d.note?' — '+esc(d.note):'')+(d.who?'<br><span class="sb">د. '+esc(d.who)+'</span>':'');
+ } else if(e.kind==='adr'){
+  body='<b>'+esc(d.what||'')+'</b><br>المشتبه: '+esc(d.drug||'—')+' · بدأ '+esc(d.on||'')+' · خطير: '+esc(d.ser||'—')+' · '+esc(d.act||'')+' · النتيجة: '+esc(d.out||'—')+
+   '<br><button class="gh" style="font-size:11.5px;padding:4px 9px;margin-top:5px" onclick="pvVigi(\''+e.id+'\')">نسخ لتقرير VigiFlow</button>';
+ }
+ return '<div class="item" style="padding:8px 10px;'+(fl.some(function(f){return f.s==='bad'})?'border-right:4px solid #C0392B':'')+'"><div class="sb"><b>'+lbl+'</b> · '+esc(dkey(e.date))+' · '+esc(String(userName(e.user)).split(' ')[0])+
+  ((e.user===ME.id||ME.role==='admin')?' · <a href="javascript:void 0" onclick="pvDel(\''+e.id+'\')" style="color:#888">حذف</a>':'')+'</div><div style="font-size:12.5px;line-height:1.7;margin-top:3px">'+(body||'—')+'</div></div>';
+}
+function pvRoundChanges(p){
+ var ds=Object.keys(p.dm).sort(), out=[];
+ for(var i=1;i<ds.length;i++){var a=p.dm[ds[i-1]],b=p.dm[ds[i]];
+  var add=Object.keys(b).filter(function(g){return !a[g]}).map(function(g){return b[g]}), stop=Object.keys(a).filter(function(g){return !b[g]}).map(function(g){return a[g]});
+  if(add.length||stop.length)out.push({date:ds[i],add:add,stop:stop});}
+ return out.slice(-6);
+}
+function pvTimeline(p,log){
+ var items=log.map(function(e){return {d:dkey(e.date),ts:e.ts||0,h:pvEntryHtml(e)}});
+ pvRoundChanges(p).forEach(function(c){items.push({d:c.date,ts:0,h:'<div class="item" style="padding:8px 10px;background:#F7F9FC"><div class="sb"><b>الجولة</b> · '+c.date+'</div><div style="font-size:12.5px;line-height:1.7;margin-top:3px;direction:ltr;text-align:right">'+
+  (c.add.length?'<span style="color:#0B6B2E">+ '+c.add.map(esc).join(' · ')+'</span>':'')+(c.add.length&&c.stop.length?'<br>':'')+(c.stop.length?'<span style="color:#9C0006">− '+c.stop.map(esc).join(' · ')+'</span>':'')+'</div></div>'})});
+ items.sort(function(a,b){return a.d<b.d?1:a.d>b.d?-1:b.ts-a.ts});
+ return items.map(function(x){return x.h}).join('');
+}
+function pvVigi(id){
+ var e=(S.pvlog||[]).find(function(x){return x.id===id}); if(!e)return;
+ var d=pvData(e), p=pvGet()||{nm:{},name:e.patient,meds:{}}, ini=String(e.patient||'').trim().split(/\s+/).map(function(w){return w.charAt(0)}).join('.');
+ var t=['تقرير أثر جانبي — '+HOSPITAL,
+  'المريض: '+ini+(d.age?' · العمر '+d.age:'')+(d.sex?' · '+d.sex:''),
+  'الأثر: '+(d.what||''),'تاريخ البدء: '+(d.on||''),
+  'الدواء المشتبه: '+((p.nm&&p.nm[d.drug])||d.drug||'')+(p.first&&p.first[d.drug]?' — بدأ '+p.first[d.drug]:''),
+  'الأدوية الأخرى: '+Object.keys(p.meds||{}).map(function(k){return p.meds[k].name}).filter(function(n){return n!==((p.nm&&p.nm[d.drug])||'')}).join(', '),
+  'خطير: '+(d.ser||''),'ما فُعل بالدواء: '+(d.act||''),'النتيجة: '+(d.out||''),
+  (d.note?'ملاحظات: '+d.note:''),'المُبلِّغ: '+userName(e.user)+' — صيدلانية، شعبة الصيدلة'].filter(Boolean).join('\n');
+ var done=function(){toast('نُسخ ✓ — الصقيه في VigiFlow')};
+ try{navigator.clipboard.writeText(t).then(done,function(){prompt('انسخي النص:',t)})}catch(x){prompt('انسخي النص:',t)}
+}
+function pvCaseV(){
+ var p=pvGet(); if(!p)return '<div class="card muted">لم يُعثر على المريض.</div><button class="gh" onclick="go(\'pv\')">‹ رجوع</button>';
+ var c=pvCase(p.key)||{}, log=pvLog(p.key), ST=pvState(p,log);
+ var meds=Object.keys(p.meds).map(function(k){return p.meds[k]});
+ var box='background:#F4F6FA;border-radius:8px;padding:7px 9px;margin-top:6px;font-size:12.5px;line-height:1.7';
+ var h='<button class="gh" onclick="go(\'pv\')" style="margin-bottom:8px">‹ كل الحالات</button>'+
+  '<div class="card"><h2>'+esc(p.name)+' '+pvBadge(ST.st)+'</h2><p class="muted">آخر جولة '+p.last+' · أدخله '+Object.keys(p.by).map(function(u){return esc(userName(u))}).join('، ')+' · ظهر في '+Object.keys(p.days).length+' أيام · '+log.length+' إدخال في الملف</p>'+
+  '<table><tr><th>الدواء</th><th>العدد</th><th>منذ</th></tr>'+meds.map(function(m){return '<tr><td style="text-align:left;direction:ltr">'+esc(m.name)+'</td><td><b>'+fq(m.qty)+'</b></td><td class="sb">'+pvDayN(p.first[m.g],p.last)+' يوم</td></tr>'}).join('')+'</table></div>';
+ /* الخطوة التالية — يقرّرها التطبيق من الأدوية والسجل */
+ h+='<div class="card" style="border-right:4px solid '+PV_STL[ST.st][1]+';background:'+PV_STL[ST.st][2]+'"><h2 style="color:'+PV_STL[ST.st][1]+'">الخطوة التالية</h2>'+
+  ST.next.map(function(x){return '<div style="font-size:13px;line-height:1.7;margin-bottom:3px">• '+esc(x)+'</div>'}).join('')+
+  ST.warn.map(function(x){return '<div style="font-size:12.5px;line-height:1.7;color:'+(x.charAt(0)==='✓'?'#0B6B2E':'#8A5300')+';font-weight:700">'+esc(x)+'</div>'}).join('')+'</div>';
+ h+='<div class="card"><h2>أضيفي معلومة جديدة</h2><div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">'+
+  [['nurse','إجابات الممرض'],['lab','نتيجة فحص'],['doc','قرار الطبيب'],['adr','تسجيل أثر جانبي']].map(function(b){
+   return '<button class="'+(PV_FORM===b[0]?'ok':'gh')+'" style="font-size:12.5px" onclick="pvFormOpen(\''+b[0]+'\')">'+b[1]+'</button>'}).join('')+'</div></div>';
+ h+=pvFormV(p);
+ h+=p.f.length?p.f.map(function(k){var R=PV_RULES[k],x='';
+  if(k==='ALG'){var su=pvSuspects(p);x='<div style="'+box+'"><b>الأدوية المشتبهة (بدأت خلال ٧ أيام):</b> <span style="direction:ltr;unicode-bidi:embed">'+su.map(function(m){return esc(m.name)}).join(' · ')+'</span></div>'}
+  return '<div class="card" style="border-right:4px solid #C0392B"><h2 style="color:#9C0006">'+R.t+'</h2>'+
+   '<p style="font-size:13px;line-height:1.75;margin:0">'+R.risk+'</p>'+x+
+   '<div style="'+box+'"><b>اسأل الممرض:</b><br>'+PV_QS[R.q].map(function(q){return '• '+q.t}).join('<br>')+'</div>'+
+   '<div style="'+box+'"><b>اقترح على الطبيب:</b> '+R.doc+'</div>'+
+   (R.lab.length?'<div style="'+box+'"><b>الفحص:</b> '+R.lab.join(' · ')+'</div>':'')+
+   '<p class="sb" style="margin:6px 0 0">المصدر: '+R.ref+'</p></div>'}).join('')
+  :'<div class="card muted">لا يوجد الآن خطر من الأدوية لهذا المريض'+(log.length?' — الملف مفتوح للمتابعة.':'.')+'</div>';
+ var tl=pvTimeline(p,log);
+ if(tl)h+='<div class="card"><h2>سجل المريض</h2>'+tl+'</div>';
+ var anyLab=p.f.some(function(k){return PV_RULES[k].lab.length});
+ h+='<div class="card"><h2>اطبع</h2><div class="rowb"><button class="ok" style="flex:1" onclick="pvPrint(\'nurse\')">أسئلة للممرض</button>'+
+  (anyLab?'<button class="sec" style="flex:1" onclick="pvPrint(\'lab\')">طلب فحص</button>':'')+'</div>'+
+  '<div class="rowb" style="margin-top:7px"><button class="gh" style="flex:1" onclick="pvPrint(\'doc\')">ملخص للطبيب</button></div></div>';
+ h+='<div class="card"><h2>المتابعة</h2><div style="display:flex;gap:6px;flex-wrap:wrap">'+PV_ST.map(function(s,i){
+  return '<button class="'+(c.status===s?'ok':'gh')+'" style="font-size:12px;padding:6px 10px" onclick="pvSet('+i+')">'+s+'</button>'}).join('')+'</div>'+
+  '<p class="sb" style="margin:6px 0 0">«تمت المتابعة» أو «تقرير PV» تنقل الحالة إلى المنتهية — وتعود تلقائياً إن ظهر خطر جديد أو معلومة خطيرة.</p>'+
+  '<label style="margin-top:8px">ملاحظة</label><input id="pvnote" value="'+esc(c.note||'')+'" placeholder="ملاحظة عامة على الحالة" oninput="pvNote(this.value)">'+
+  (c.status?'<p class="sb" style="margin-top:6px">آخر تحديث: '+esc(String(userName(c.user)).split(' ')[0])+' · '+esc(c.date||'')+'</p>':'')+'</div>';
+ return h;
+}
+function pvUpsert(patch){
+ var p=pvGet(); if(!p)return;
+ if(!S.pvcases)S.pvcases=[];
+ var c=pvCase(p.key);
+ if(!c){c={id:'pv-'+uid(),pkey:p.key,patient:p.name,unit:'saririya',status:'',note:''};S.pvcases.push(c)}
+ Object.assign(c,patch,{rules:p.f.join(','),date:today(),user:ME.id,ts:Date.now(),synced:false});
+ save();
+}
+function pvSet(i){var s=PV_ST[i];if(!s)return;var c=pvCase(PV_CUR);pvUpsert({status:(c&&c.status===s)?'':s});sync(true);render();toast('حُفظ ✓')}
+function pvNote(v){pvUpsert({note:String(v||'').slice(0,300)});deb('pvn',function(){sync(true)})}
+function pvPrint(kind){
+ var p=pvGet(); if(!p)return;
+ var meds=Object.keys(p.meds).map(function(k){return p.meds[k]}), log=pvLog(p.key);
+ var head='<h3>'+esc(HOSPITAL)+' — شعبة الصيدلة</h3>';
+ var who='<div class="meta"><span>اسم المريض : <b>'+esc(p.name)+'</b></span><span style="float:left">التاريخ : ____/____/٢٠٢٦</span></div>';
+ var body='';
+ if(kind==='nurse'){
+  var qs=pvQset(p);
+  body=head+'<div class="sub">أسئلة متابعة — للممرض المسؤول</div>'+who+
+   '<table><tr>'+PV_VIT.map(function(v){return '<td class="nm">'+v.t+': ______</td>'}).join('')+'</tr></table><br>'+
+   '<table><tr><th style="width:28px">ت</th><th>السؤال</th><th style="width:120px">الجواب</th></tr>'+qs.map(function(q,i){return '<tr><td class="c">'+(i+1)+'</td><td class="nm">'+q.t+'</td><td style="text-align:center;white-space:nowrap">'+(q.k?'__________':'☐ نعم &nbsp; ☐ لا')+'</td></tr>'}).join('')+'</table>'+
+   '<p style="font-size:12px;margin-top:12px;color:#000">ملاحظات الممرض: ......................................................................................</p>'+
+   '<p style="font-size:12px;color:#000">اسم الممرض وتوقيعه: ................................ — تُعاد إلى: زهراء عمار / صفا فيصل · اليقظة الدوائية</p>';
+ } else if(kind==='lab'){
+  var L={};p.f.forEach(function(k){PV_RULES[k].lab.forEach(function(x){L[x]=1})});
+  body=head+'<div class="sub">طلب فحص</div>'+who+
+   '<table><tr><th>الفحص</th><th>السبب</th></tr>'+Object.keys(L).map(function(x){return '<tr><td class="nm"><b>'+x+'</b></td><td class="nm">متابعة علاج دوائي — '+p.f.filter(function(k){return PV_RULES[k].lab.indexOf(x)>=0}).map(function(k){return PV_RULES[k].t}).join('، ')+'</td></tr>'}).join('')+'</table>'+
+   '<p style="font-size:12px;margin-top:14px;color:#000">الصيدلاني المسؤول: ................................ التوقيع: ..............</p>';
+ } else {
+  /* آخر المعطيات من الملف — جاهزة أمام الطبيب */
+  var lastOf=function(k){for(var i=log.length-1;i>=0;i--)if(log[i].kind===k)return log[i];return null};
+  var facts=[];['nurse','lab','adr'].forEach(function(k){var e=lastOf(k);if(!e)return;var fl=pvFlags(e);
+   facts.push('<tr><td class="nm">'+({nurse:'الممرض',lab:'الفحص',adr:'أثر جانبي'})[k]+' — '+esc(dkey(e.date))+'</td><td class="nm">'+(fl.length?fl.map(function(f){return (f.s==='bad'?'<b>⚠ ':'')+esc(f.t)+(f.s==='bad'?'</b>':'')}).join(' · '):'طبيعي')+'</td></tr>')});
+  body=head+'<div class="sub">ملخص صيدلاني للطبيب المعالج — اليقظة الدوائية</div>'+who+
+   '<p style="font-size:12px;color:#000"><b>الأدوية الحالية:</b> <span style="direction:ltr;unicode-bidi:embed">'+meds.map(function(m){return esc(m.name)+' ×'+fq(m.qty)}).join(' · ')+'</span></p>'+
+   (p.f.length?'<table><tr><th>الخطر</th><th>المقترح</th><th>المصدر</th></tr>'+p.f.map(function(k){var R=PV_RULES[k];
+    var su=k==='ALG'?'<br><b>المشتبه:</b> <span style="direction:ltr;unicode-bidi:embed">'+pvSuspects(p).map(function(m){return esc(m.name)}).join(' · ')+'</span>':'';
+    return '<tr><td class="nm"><b>'+R.t+'</b><br>'+R.risk+su+'</td><td class="nm">'+R.doc+'</td><td class="nm" style="font-size:10.5px">'+R.ref+'</td></tr>'}).join('')+'</table>':'')+
+   (facts.length?'<br><table><tr><th style="width:30%">آخر المعطيات</th><th>النتيجة</th></tr>'+facts.join('')+'</table>':'')+
+   '<p style="font-size:12px;margin-top:14px;color:#000">الصيدلاني: '+esc(userName(ME.id))+' — اليقظة الدوائية · التوقيع: ..............</p>'+
+   '<p style="font-size:12px;color:#000">رأي الطبيب: ..............................................................................</p>';
+ }
+ var bx=document.getElementById('prt'); if(!bx)return toast('تعذّرت الطباعة');
+ bx.innerHTML=body; document.body.classList.add('prt');
+ var clear=function(){document.body.classList.remove('prt');bx.innerHTML=''};
  try{window.onafterprint=function(){clear();window.onafterprint=null}}catch(e){}
  setTimeout(function(){try{window.print()}catch(e){toast('تعذّرت الطباعة')}setTimeout(clear,4000)},120);
 }
